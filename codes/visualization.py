@@ -17,7 +17,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-
+########################################
 def visualizing(file):
     with open(file, 'rb') as f:
         df = pickle.load(f)

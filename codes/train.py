@@ -17,6 +17,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+########################################
 with open('experiment8_model_3.pkl', 'rb') as f:
     model_param = pickle.load(f)
 ################################
