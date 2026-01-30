@@ -25,6 +25,12 @@ class Environment:
         # points == action space
         self.points = np.arange(self.nrow * self.ncol)
         self.num_actions = len(self.points)
+        
+        # 각 좌표의 주변 좌표 리스트 딕셔너리 생성
+        self.neighbor_coords_dict = {}
+        for idx in self.points:
+            neighbor_coords = self.get_neighbor_coords(idx)
+            self.neighbor_coords_dict[idx] = neighbor_coords
 
         # reward, done 딕셔너리
         self.reward_dict = reward_dict
@@ -82,7 +88,7 @@ class Environment:
         mine_bool = (answer_map==-2)
 
         for idx in self.mine_points:
-            neighbor_coords = self.get_neighbor_coords(idx)
+            neighbor_coords = self.neighbor_coords_dict[idx]
             for x, y in neighbor_coords:
                 if mine_bool[x, y] == False:
                     answer_map[x, y] += 1
@@ -110,7 +116,7 @@ class Environment:
             result_state[x, y] = self.map_answer[x, y]
 
             if self.map_answer[x,y] == 0:
-                neighbor_coords = self.get_neighbor_coords(self._coord_to_idx(x, y))
+                neighbor_coords = self.neighbor_coords_dict[self._coord_to_idx(x, y)]
                 queue.extend(neighbor_coords)
 
         return result_state
@@ -127,7 +133,7 @@ class Environment:
             return False
 
         unopened_cnt = 0
-        neighbor_coords = self.get_neighbor_coords(clicked_idx)
+        neighbor_coords = self.neighbor_coords_dict[clicked_idx]
 
         for nx, ny in neighbor_coords:
             if self.present_state[nx, ny] == -1:
