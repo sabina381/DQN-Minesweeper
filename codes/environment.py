@@ -8,7 +8,11 @@ from typing import Tuple
 from collections import deque
 import random
 
+#################################
+directions = [(-1, 0), (1, 0), (0, -1), (0, 1),
+            (-1, -1), (-1, 1), (1, -1), (1, 1)]
 
+#################################
 class Environment:
     def __init__(self, gridworld_size:Tuple, num_mine:int,
                     reward_dict:dict, done_dict:dict, color_dict:dict):
@@ -38,68 +42,78 @@ class Environment:
         # 행동 횟수 카운트
         self.move_cnt = 0
 
-        # render에 사용하는 color 딕셔너리
-        color_dict = color_dict
+        # reder에 사용하는 color map
+        self.color_dict = color_dict
 
+    
+    def _coord_to_idx(self, x:int, y:int):
+        return x * self.ncol + y
+
+
+    def _idx_to_coord(self, idx):
+        x, y = divmod(idx, self.ncol)
+        return (x, y)
+
+
+    def get_neighbor_coords(self, idx):
+        '''
+        입력 받은 idx 주변의 좌표 리스트를 반환한다.
+        '''
+        x, y = self._idx_to_coord(idx)
+        
+        neighbor_coords = []
+
+        for dx, dy in directions:
+            nx, ny = x + dx, y + dy
+            if (0 <= nx < self.nrow) and (0 <= ny < self.ncol):
+                neighbor_coords.append((nx, ny))
+        
+        return neighbor_coords
 
 
     def make_answer_map(self):
         '''
-        랜덤 배정된 지뢰 위치에 따라 지뢰찾기 맵 생성
-        지뢰 위치: -2 / 지뢰 없는 위치: 주변 8개 칸의 지뢰 개수 표시
+        랜덤 배정된 지뢰 위치에 따라 지뢰찾기 맵을 생성한다.
+        지뢰 위치: -2 / 지뢰 없는 위치: 주변 8개 칸의 지뢰 개수
         '''
         answer_map = np.full(shape=(self.nrow, self.ncol), fill_value=0)
-        x, y = np.divmod(self.mine_points, self.ncol)
+        x, y = self._idx_to_coord(self.mine_points)
         answer_map[x, y] = -2
         mine_bool = (answer_map==-2)
 
-        # 주변 8칸 좌표
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1),
-                  (-1, -1), (-1, 1), (1, -1), (1, 1)]
-
-        for idx in self.points: # 모든 좌표를 탐색
-            if idx in self.mine_points:
-                continue
-            else:
-                x, y = divmod(idx, self.ncol)
-                for dx, dy in directions:   # 주변 8칸을 탐색해 지뢰가 있을 때마다 +1
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < self.nrow and 0 <= ny < self.ncol: # 가장자리 탐색 금지 처리
-                        if mine_bool[nx, ny]:
-                            answer_map[x, y] += 1
+        for idx in self.mine_points:
+            neighbor_coords = self.get_neighbor_coords(idx)
+            for x, y in neighbor_coords:
+                if mine_bool[x, y] == False:
+                    answer_map[x, y] += 1
 
         return answer_map, mine_bool
 
 
     def bfs_minesweeper(self, clicked_idx:int):
         '''
+        가려져있는 state에서 클릭한 좌표에 따라 현재 state를 열어서 반환한다.
         input : 클릭한 idx
-        output : 클릭한 좌표에 따라서 열린 맵(array)
-        가려져있는 맵에서 클릭한 좌표에 따라 맵을 열어주는 함수
+        output : 클릭한 좌표에 따라서 열린 state (array)
         '''
-        act_x, act_y = divmod(clicked_idx, self.ncol)
+        act_x, act_y = self._idx_to_coord(clicked_idx)
         queue = deque([(act_x, act_y)])
 
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1),
-                    (-1, -1), (-1, 1), (1, -1), (1, 1)]
-
-        result = self.present_state.copy()
+        result_state = self.present_state.copy()
 
         while queue:
             x, y = queue.popleft()
 
-            if result[x, y] != -1:
+            if result_state[x, y] != -1:
                 continue
 
-            result[x, y] = self.map_answer[x, y]
+            result_state[x, y] = self.map_answer[x, y]
 
             if self.map_answer[x,y] == 0:
-                for dx, dy in directions:
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < self.nrow and 0 <= ny < self.ncol and result[nx, ny] == -1:
-                        queue.append((nx,ny)) # 좌표 -> 인덱스 역산
+                neighbor_coords = self.get_neighbor_coords(self._coord_to_idx(x, y))
+                queue.extend(neighbor_coords)
 
-        return result
+        return result_state
 
 
     def check_guess(self, clicked_idx:int):
@@ -109,18 +123,17 @@ class Environment:
         클릭한 좌표가 guess인지 확인하는 함수
         클릭한 좌표 주변 8칸이 모두 열리지 않은 경우 guess
         '''
-        directions = [(-1, 0), (1, 0), (0, -1), (0, 1),
-                  (-1, -1), (-1, 1), (1, -1), (1, 1)]
-        x, y = divmod(clicked_idx, self.ncol)
-        result = 0
+        if self.move_cnt == 0:
+            return False
 
-        for dx, dy in directions:
-            nx, ny = x + dx, y + dy
-            if 0 <= nx < self.nrow and 0 <= ny < self.ncol:
-                if self.present_state[nx, ny] == -1:
-                    result += 1
+        unopened_cnt = 0
+        neighbor_coords = self.get_neighbor_coords(clicked_idx)
 
-        if result == 8:
+        for nx, ny in neighbor_coords:
+            if self.present_state[nx, ny] == -1:
+                unopened_cnt += 1
+
+        if unopened_cnt == len(neighbor_coords):
             return True
         else:
             return False
@@ -150,14 +163,13 @@ class Environment:
         - input : action_idx - 좌표
         - output : next_state, reward, done, clear
         '''
-        x, y = divmod(action_idx, self.ncol)
+        x, y = self._idx_to_coord(action_idx)
 
         # 첫번째 action인 경우
         if self.move_cnt == 0 :
             if action_idx in self.mine_points:
-                # 만약 start 좌표에 지뢰가 있는 경우 옮기기
+                # 만약 처음 선택한 좌표에 지뢰가 있는 경우 옮기기
                 self.move_first_mine(action_idx)
-
 
         # action에 따라 계산된 state
         next_state = self.bfs_minesweeper(action_idx)
@@ -224,7 +236,7 @@ class Environment:
         render_state = np.full(shape=(self.nrow, self.ncol), fill_value=".")
 
         for idx in self.points:
-            x, y = divmod(idx, self.ncol)
+            x, y = self._idx_to_coord(idx)
             if state[x,y] == -1:
                 continue
             elif state[x,y] == -2:
@@ -244,7 +256,7 @@ class Environment:
         render_state = np.full(shape=(self.nrow, self.ncol), fill_value=".")
 
         for idx in self.points:
-            x, y = divmod(idx, self.ncol)
+            x, y = self._idx_to_coord(idx)
             if self.map_answer[x,y] == -2:
                 render_state[x,y] = "M"
             else:
@@ -259,28 +271,28 @@ class Environment:
         return f"color: {self.color_dict[var]}"
 
 
-    def samples(self, num:int):
-        sample_mine_points = []
+    # def samples(self, num:int):
+    #     sample_mine_points = []
 
-        for i in range(num):
-            self.mine_points = np.random.choice(self.points, self.num_mine, replace=False)
-            sample_mine_points.append(self.mine_points)
+    #     for i in range(num):
+    #         self.mine_points = np.random.choice(self.points, self.num_mine, replace=False)
+    #         sample_mine_points.append(self.mine_points)
 
-        return sample_mine_points
+    #     return sample_mine_points
 
-    def train_reset(self, samples:np.array):
-        self.mine_points = random.sample(samples, 1)[0]
-        # 정답 맵
-        self.map_answer, self.mine_bool = self.make_answer_map()
-        # state 맵
-        self.present_state = np.full((self.nrow, self.ncol), -1) # BFS로 탐색하지 않은 부분을 -1로 초기화
+    # def train_reset(self, samples:np.array):
+    #     self.mine_points = random.sample(samples, 1)[0]
+    #     # 정답 맵
+    #     self.map_answer, self.mine_bool = self.make_answer_map()
+    #     # state 맵
+    #     self.present_state = np.full((self.nrow, self.ncol), -1) # BFS로 탐색하지 않은 부분을 -1로 초기화
 
-        self.move_cnt = 0
+    #     self.move_cnt = 0
 
 
-    def check_18_up(self, state):
-        if np.sum(state != -1) >= 18:
-            return True
-        else:
-            return False
+    # def check_18_up(self, state):
+    #     if np.sum(state != -1) >= 18:
+    #         return True
+    #     else:
+    #         return False
 
