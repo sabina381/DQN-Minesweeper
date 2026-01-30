@@ -11,7 +11,7 @@ import random
 
 class Environment:
     def __init__(self, gridworld_size:Tuple, num_mine:int,
-                    reward_dict:dict, done_dict:dict):
+                    reward_dict:dict, done_dict:dict, color_dict:dict):
 
         self.gridworld_size = gridworld_size
         self.nrow, self.ncol = self.gridworld_size
@@ -37,6 +37,10 @@ class Environment:
 
         # 행동 횟수 카운트
         self.move_cnt = 0
+
+        # render에 사용하는 color 딕셔너리
+        color_dict = color_dict
+
 
 
     def make_answer_map(self):
@@ -199,6 +203,9 @@ class Environment:
 
 
     def reset(self):
+        '''
+        reset game
+        '''
         # 지뢰 랜덤으로 배정
         self.mine_points = np.random.choice(self.points, self.num_mine, replace=False)
         # 정답 맵
@@ -206,8 +213,14 @@ class Environment:
         # state 맵
         self.present_state = np.full((self.nrow, self.ncol), -1) # BFS로 탐색하지 않은 부분을 -1로 초기화
 
+        self.move_cnt = 0
+
 
     def render(self, state):
+        '''
+        입력받은 state를 dataframe 형식으로 출력
+        - 열리지 않은 칸: '.'
+        '''
         render_state = np.full(shape=(self.nrow, self.ncol), fill_value=".")
 
         for idx in self.points:
@@ -225,6 +238,9 @@ class Environment:
 
 
     def render_answer(self):
+        '''
+        현재 environment의 지뢰찾기 맵을 dataframe 형식으로 출력
+        '''
         render_state = np.full(shape=(self.nrow, self.ncol), fill_value=".")
 
         for idx in self.points:
@@ -240,9 +256,7 @@ class Environment:
 
 
     def render_color(self, var):
-        color = {'0':'black', '1':"skyblue", '2':'lightgreen', '3':'red', '4':'violet', '5':'brown',
-                 '6':'turquoise', '7':'grey', '8':'black', 'M':'white', '.':'black'}
-        return f"color: {color[var]}"
+        return f"color: {self.color_dict[var]}"
 
 
     def samples(self, num:int):
@@ -260,6 +274,8 @@ class Environment:
         self.map_answer, self.mine_bool = self.make_answer_map()
         # state 맵
         self.present_state = np.full((self.nrow, self.ncol), -1) # BFS로 탐색하지 않은 부분을 -1로 초기화
+
+        self.move_cnt = 0
 
 
     def check_18_up(self, state):
