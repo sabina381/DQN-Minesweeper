@@ -1,6 +1,3 @@
-import time
-import os
-import pickle
 from IPython.display import display
 import numpy as np
 import pandas as pd
@@ -251,7 +248,7 @@ class Environment:
                 render_state[x,y] = state[x,y]
 
         render_state = pd.DataFrame(render_state)
-        render_state = render_state.style.applymap(self.render_color)
+        render_state = render_state.style.map(self.render_color)
         display(render_state)
 
 
@@ -269,7 +266,7 @@ class Environment:
                 render_state[x,y] = str(self.map_answer[x,y])
 
         render_state = pd.DataFrame(render_state)
-        render_state = render_state.style.applymap(self.render_color)
+        render_state = render_state.style.map(self.render_color)
         display(render_state)
 
 

@@ -1,24 +1,8 @@
-import time
-import os
-import pickle
-import numpy as np
-import pandas as pd
-from typing import Tuple
-from collections import deque
-import copy
-from scipy.special import softmax
-import random
-from collections import defaultdict
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 
 ########################################
-class DQN_Net(nn.Module):
+class Net(nn.Module):
     def __init__(self, state_size, action_size, conv_units):
         super().__init__()
         # 합성곱 층 정의

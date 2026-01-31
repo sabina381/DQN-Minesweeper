@@ -1,5 +1,8 @@
 from easydict import EasyDict
 
+import torch
+import torch.nn as nn
+
 ############# Environment
 gridworld_size = (9, 9)
 num_mine = 9
@@ -34,6 +37,19 @@ EPSILON_MIN = 0
 ############# DQN settings
 CONV_UNITS = 64
 UPDATE_TARGET_EVERY = 5
+
+LOSS_FUNC = nn.MSELoss()
+OPTIMIZER = torch.optim.Adam
+# torch.optim.Adam(self.model.parameters(), lr=LEARN_MAX)
+
+if torch.backends.mps.is_built():
+    DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+
+elif torch.backends.cuda.is_built():
+    DEVICE = torch.device("mps" if torch.cuda.is_available() else "cpu")
+
+else:
+    DEVICE = torch.device("cpu")
 
 ############# Train
 PRINT_EVERY = 100
