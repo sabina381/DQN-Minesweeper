@@ -1,17 +1,20 @@
 from easydict import EasyDict
 
 import torch
-import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 
 ############# Environment
-gridworld_size = (9, 9)
-num_mine = 9
+GRIDWORLD_SIZE = (9, 9)
+NUM_MINE = 9
 
-reward_dict = {'mine':-1, 'empty':1, 'overlapped':-1, 'guess':0.3, 'clear':1}
-done_dict = {'mine':True, 'empty':False, 'overlapped':False, 'guess':False, 'clear':True}
+REWARD_DICT = {'mine':-1, 'empty':1, 'overlapped':-1, 'guess':0.3, 'clear':1}
+DONE_DICT = {'mine':True, 'empty':False, 'overlapped':False, 'guess':False, 'clear':True}
 
-color_dict = {'0':'black', '1':"skyblue", '2':'lightgreen', '3':'red', '4':'violet', '5':'brown',
+COLOR_DICT = {'0':'black', '1':"skyblue", '2':'lightgreen', '3':'red', '4':'violet', '5':'brown',
                 '6':'turquoise', '7':'grey', '8':'black', 'M':'white', '.':'black'}
+
+STATE_TYPE = "one-hot" # "original", "one-hot", "normalization"
 
 ############# Hyper parameters
 MEM_SIZE = 50000
@@ -38,8 +41,8 @@ EPSILON_MIN = 0
 CONV_UNITS = 64
 UPDATE_TARGET_EVERY = 5
 
-LOSS_FUNC = nn.MSELoss()
-OPTIMIZER = torch.optim.Adam
+LOSS_FUNC = F.mse_loss
+OPTIMIZER = optim.Adam
 # torch.optim.Adam(self.model.parameters(), lr=LEARN_MAX)
 
 if torch.backends.mps.is_built():
@@ -59,9 +62,35 @@ EPISODES = 10000
 
 #######################################
 CONFIG = EasyDict({
-    'GRIDWORLD_SIZE': gridworld_size,
-    'NUM_MINE': num_mine,
-    'REWARD_DICT': reward_dict,
-    'DONE_DICT': done_dict,
-    'COLOR_DICT': color_dict
+    'DEVICE' : DEVICE,
+    'STATE_TYPE' : STATE_TYPE,
+    
+    'GRIDWORLD_SIZE' : GRIDWORLD_SIZE,
+    'NUM_MINE' : NUM_MINE,
+    'REWARD_DICT' : REWARD_DICT,
+    'DONE_DICT' : DONE_DICT,
+    'COLOR_DICT' : COLOR_DICT,
+
+    'MEM_SIZE' : MEM_SIZE,
+    'MEM_SIZE_MIN' : MEM_SIZE_MIN,
+    'BATCH_SIZE' : BATCH_SIZE,
+    'CONV_UNITS' : CONV_UNITS,
+
+    'LEARN_MAX' : LEARN_MAX,
+    'LEARN_MIN' : LEARN_MIN,
+    'LEARN_DECAY' : LEARN_DECAY,
+    'LEARN_EPOCH' : LEARN_EPOCH,
+
+    'GAMMA' : GAMMA,
+    'EPSILON' : EPSILON,
+    'EPSILON_DECAY' : EPSILON_DECAY,
+    'EPSILON_MIN' : EPSILON_MIN,
+    
+    'UPDATE_TARGET_EVERY' : UPDATE_TARGET_EVERY,
+    'LOSS_FUNC' : LOSS_FUNC,
+    'OPTIMIZER' : OPTIMIZER,
+
+    'PRINT_EVERY' : PRINT_EVERY,
+    'SAVE_EVERY' : SAVE_EVERY,
+    'EPISODES' : EPISODES
 })

@@ -11,12 +11,12 @@ directions = [(-1, 0), (1, 0), (0, -1), (0, 1),
 
 #################################
 class Environment:
-    def __init__(self, gridworld_size:Tuple, num_mine:int,
-                    reward_dict:dict, done_dict:dict, color_dict:dict):
+    def __init__(self, GRIDWORLD_SIZE:Tuple, NUM_MINE:int,
+                    REWARD_DICT:dict, DONE_DICT:dict, COLOR_DICT:dict):
 
-        self.gridworld_size = gridworld_size
+        self.gridworld_size = GRIDWORLD_SIZE
         self.nrow, self.ncol = self.gridworld_size
-        self.num_mine = num_mine
+        self.num_mine = NUM_MINE
 
         # 그리드월드의 좌표(튜플)의 리스트
         # points == action space
@@ -30,8 +30,8 @@ class Environment:
             self.neighbor_coords_dict[idx] = neighbor_coords
 
         # reward, done 딕셔너리
-        self.reward_dict = reward_dict
-        self.done_dict = done_dict
+        self.reward_dict = REWARD_DICT
+        self.done_dict = DONE_DICT
 
         # 지뢰 랜덤으로 배정
         self.mine_points = np.random.choice(self.points, self.num_mine, replace=False)
@@ -46,7 +46,7 @@ class Environment:
         self.move_cnt = 0
 
         # reder에 사용하는 color map
-        self.color_dict = color_dict
+        self.color_dict = COLOR_DICT
 
     
     def _coord_to_idx(self, x:int, y:int):
