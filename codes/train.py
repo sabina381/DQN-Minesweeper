@@ -31,7 +31,7 @@ class Trainer:
                 # DQN_Agent
                 STATE_TYPE:str, EPSILON:float, EPSILON_DECAY:float, EPSILON_MIN:float, BATCH_SIZE:int, 
                 GAMMA:float, MEM_SIZE:int, LEARN_MAX:float, CONV_UNITS:int, DEVICE, LOSS_FUNC, OPTIMIZER
-                )
+                ):
 
         self.env = Environment(GRIDWORLD_SIZE= GRIDWORLD_SIZE, 
                             NUM_MINE= NUM_MINE, 
@@ -68,6 +68,10 @@ class Trainer:
         self.print_every = PRINT_EVERY
         self.save_every = SAVE_EVERY
 
+        self.reset_logs()
+
+    
+    def reset_logs(self):
         self.current_epi = 0
 
         self.rewards_list = []
@@ -121,6 +125,7 @@ class Trainer:
         self.env = self.env.reset()
         self.agent = self.agent.reset()
         self.load_model()
+        self.reset_logs()
 
 
     def game_reset(self):
@@ -135,6 +140,17 @@ class Trainer:
         self.agent.action_space = self.env.points.copy()
 
         return state, done, clear, total_reward, cnt, loss
+
+
+    def step_one_turn(self):
+        state = self.env.present_state.copy()
+        action = self.agent.get_action(state)
+        next_state, reward, done, clear = self.env.step(action)
+
+        # count 제한 : 전체 칸 수 - 지뢰 개수
+        done = self.check_cnt_limit()
+
+        return state, action, reward, next_state, done, clear
 
     
     def check_cnt_limit(self, cnt):
@@ -186,6 +202,14 @@ class Trainer:
         
         print(f"Eval idx saved to \'{file_path}\'")
 
+    
+    def load_train_log(self):
+        file_path = f"{self.path}/{self.folder_name}_train_log.pkl"
+        with open(file_path, 'rb') as f:
+            train_log = pickle.load(f)  # df
+        
+        return train_log
+
 
     def print_train_log(self):
         print("="*30, end="\n")
@@ -209,13 +233,8 @@ class Trainer:
             while not done:
                 cnt+=1
 
-                state = self.env.present_state.copy()
-                action = self.agent.get_action(state)
-                next_state, reward, done, clear = self.env.step(action)
+                state, action, reward, next_state, done, clear = self.step_one_turn()
                 total_reward += reward
-
-                # count 제한 : 전체 칸 수 - 지뢰 개수
-                done = self.check_cnt_limit()
 
                 # replay memory에 샘플 저장
                 self.agent.append_sample(state, action, reward, next_state, done, clear)
@@ -250,6 +269,4 @@ class Trainer:
 
         print(f"Test completed. total avg win rate: {round(np.mean(self.clear_list), 3)}")
 
-
-    def visualize_logs(self):
-
+    def valid(self):
