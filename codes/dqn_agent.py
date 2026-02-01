@@ -14,7 +14,8 @@ from scaling import *
 class DQN_Agent:
     def __init__(self, STATE_SIZE:Tuple, STATE_TYPE:str, NUM_MINE:int,
                 EPSILON:float, EPSILON_DECAY:float, EPSILON_MIN:float, 
-                BATCH_SIZE:int, GAMMA:float, MEM_SIZE:int, LEARN_MAX:float,
+                BATCH_SIZE:int, GAMMA:float, MEM_SIZE:int, 
+                LEARN_MAX:float, LEARN_MIN:float, LEARN_DECAY:float, LEARN_EPOCH:float,
                 CONV_UNITS:int, 
                 DEVICE, LOSS_FUNC, OPTIMIZER):
 
@@ -31,42 +32,58 @@ class DQN_Agent:
 
         # 하이퍼파라미터
         self.epsilon = EPSILON
+        self.epsilon_init = EPSILON
         self.epsilon_decay = EPSILON_DECAY
         self.epsilon_min = EPSILON_MIN
-        self.batch_size = BATCH_SIZE
+
         self.gamma = GAMMA
 
+        self.lr = LEARN_MAX
+        self.lr_init = LEARN_MAX
+
+        self.batch_size = BATCH_SIZE
+        self.conv_units = CONV_UNITS
+
         # 리플레이 메모리
-        self.memory = deque(maxlen = MEM_SIZE)
+        self.mem_size = MEM_SIZE
+        self.memory = deque(maxlen = self.mem_size)
 
         # 모델과 타깃 모델 생성
         self.device = DEVICE
 
         # model, target model gpu 올리고 초기화
+        # state_type에 따라 신경망 결정
         if self.state_type == "one-hot":
-            self.model = NetOneHot(STATE_SIZE, self.num_actions, CONV_UNITS).to(self.device)
-            self.target_model = NetOneHot(STATE_SIZE, self.num_actions, CONV_UNITS).to(self.device)
+            self.model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
+            self.target_model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
         else:
-            self.model = Net(STATE_SIZE, self.num_actions, CONV_UNITS).to(self.device)
-            self.target_model = Net(STATE_SIZE, self.num_actions, CONV_UNITS).to(self.device)
-
+            self.model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
+            self.target_model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
         self.update_target_model()
-        self.loss_func = LOSS_FUNC
 
-        self.optimizer = OPTIMIZER(self.model.parameters(), lr=LEARN_MAX)
+        self.loss_func = LOSS_FUNC
+        self.optimizer_type = OPTIMIZER
+        self.optimizer = OPTIMIZER(self.model.parameters(), lr=self.lr_init)
 
 
     def update_target_model(self):
-        # 타깃 모델을 업데이트 하는 함수
+        '''
+        target model을 업데이트 한다.
+        '''
         self.target_model.load_state_dict(self.model.state_dict())
 
 
     def append_sample(self, state, action, reward, next_state, done, clear):
-        # 샘플을 리플레이 메모리에 저장하는 함수
+        '''
+        게임 sample 1개를 replay memory에 저장한다.
+        '''
         self.memory.append((state, action, reward, next_state, done, clear))
 
     
     def change_state_type(self, state):
+        '''
+        state_type에 따라 state를 정규화한다.
+        '''
         assert state.dim() == 4, f"The tensor must be 4-dimensional. 현재 차원: {state.dim()}"
 
         if self.state_type == "original":
@@ -109,7 +126,7 @@ class DQN_Agent:
 
     def train_model(self):
         '''
-        리플레이 메모리에서 무작위로 추출한 배치로 학습한다.
+        replay memory에서 무작위로 배치를 추출해 1회 학습한다.
         '''
         # 메모리에서 배치 크기만큼 무작위로 샘플 추출
         batch_size = min(self.batch_size, len(self.memory))
@@ -152,3 +169,25 @@ class DQN_Agent:
         self.epsilon = max(self.epsilon, self.epsilon_min)
 
         return loss
+
+    
+    def reset(self):
+        self.action_space = torch.tensor(np.arange(self.nrow * self.ncol))
+        self.num_actions = len(self.action_space)
+        self.q_values = torch.zeros(self.action_space.shape, dtype=torch.float32)
+
+        self.epsilon = self.epsilon_init
+        self.lr= self.lr_init
+
+        self.memory = deque(maxlen = self.mem_size)
+
+        if self.state_type == "one-hot":
+            self.model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
+            self.target_model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
+        else:
+            self.model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
+            self.target_model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
+        self.update_target_model()
+
+        self.optimizer = self.optimizer_type(self.model.parameters(), lr=self.lr_init)
+
