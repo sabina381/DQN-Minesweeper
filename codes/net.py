@@ -30,13 +30,14 @@ class Net(nn.Module):
         x = F.relu(self.conv4(x))  # 네 번째 합성곱층과 활성화 함수 적용
 
         # flatten
-        x = x.view(-1, self.fc_size)  # 배치 크기에 맞게 데이터를 평탄화
+        x = x.reshape(-1, self.fc_size)  # 배치 크기에 맞게 데이터를 평탄화
         # 완전 연결층
         x = self.fc(x)
 
         return x
 
-class NetOneHot(nn.Module):
+################ one-hot state 전용 Net (channel 11)
+class NetOneHot(nn.Module): 
     def __init__(self, state_size, action_size, conv_units):
         super().__init__()
         # 합성곱 층 정의

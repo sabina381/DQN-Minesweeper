@@ -3,7 +3,12 @@ import torch.nn.functional as F
 
 ###########################################
 def mine_normalize(state):
-    norm_state = state.clone().float()  # torch.Size([batch_size, 1, 9, 9])
+    '''
+    state의 차원을 그대로 유지하면서 정규화한다.
+    output dim = [batch_size, 1, nrow, ncol]
+    지뢰(-2): -1, 안열린 칸(-1): -0.5, 0~8: min-max normalizing
+    '''
+    norm_state = state.clone().float()  # torch.Size([batch_size, 1, nrow, ncol])
     batch_size, _, nrow, ncol = norm_state.size()
 
     # 열린 칸 정규화 처리
@@ -25,15 +30,19 @@ def mine_normalize(state):
 
 
 def one_hot_scaling(state):
-    raw_state = state.clone()   # torch.Size([batch_size, 1, 9, 9])
+    '''
+    state를 one-hot encoding 방식으로 변경한다.
+    output dim = [batch_size, 11, nrow, ncol]
+    채널 순서: -2(지뢰) ~ 8
+    '''
+    raw_state = state.clone()   # torch.Size([batch_size, 1, nrow, ncol])
     batch_size, _, nrow, ncol = raw_state.size()
 
     shifted_state = raw_state + 2
-    one_hot = F.one_hot(shifted_state.squeeze(1).long(), num_classes=11) # torch.Size([batch_size, 9, 9, 11])
-    scaled_state = one_hot.permute(0, 3, 1, 2).float().contiguous() # torch.Size([batch_size, 11, 9, 9])
+    one_hot = F.one_hot(shifted_state.squeeze(1).long(), num_classes=11) # torch.Size([batch_size, nrow, ncol, 11])
+    scaled_state = one_hot.permute(0, 3, 1, 2).float().contiguous() # torch.Size([batch_size, 11, nrow, ncol])
 
     assert scaled_state.dim() == 4, f"The tensor must be 4-dimensional. 현재 차원: {scaled_state.dim()}"
     assert scaled_state.size() == torch.Size([batch_size, 11, nrow, ncol]), f"The tensor size must be [{batch_size}, 11, {nrow}, {ncol}]. 현재 차원: {scaled_state.size()}"
 
     return scaled_state
-
