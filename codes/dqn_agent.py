@@ -1,35 +1,33 @@
-import time
-import os
-import pickle
 import numpy as np
-import pandas as pd
 from typing import Tuple
 from collections import deque
 import copy
-from scipy.special import softmax
 import random
-from collections import defaultdict
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 import torch
-import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 
 from net import *
+from scaling import *
 
 ########################################
 class DQN_Agent:
-    def __init__(self, state_size:Tuple, action, num_mine,
-                EPSILON, EPSILON_DECAY, EPSILON_MIN, 
-                BATCH_SIZE, GAMMA, MEM_SIZE, LEARN_MAX,
-                CONV_UNITS, DEVICE, LOSS_FUNC, OPTIMIZER):
+    def __init__(self, STATE_SIZE:Tuple, STATE_TYPE:str, NUM_MINE:int,
+                EPSILON:float, EPSILON_DECAY:float, EPSILON_MIN:float, 
+                BATCH_SIZE:int, GAMMA:float, MEM_SIZE:int, LEARN_MAX:float,
+                CONV_UNITS:int, 
+                DEVICE, LOSS_FUNC, OPTIMIZER):
 
-        self.num_mine = num_mine
-        self.state_size = state_size # 튜플로 입력받음
-        self.action = torch.tensor(action)
-        self.q_values = torch.zeros(self.action.shape, dtype=torch.float32)
+        self.num_mine = NUM_MINE
+        self.state_size = STATE_SIZE # 튜플로 입력받음
+        self.state_type = STATE_TYPE # "original", "one-hot", "normalization"
+        # 차원
+        self.nrow = STATE_SIZE[0]
+        self.ncol = STATE_SIZE[1]
+
+        self.action_space = torch.tensor(np.arange(self.nrow * self.ncol))
+        self.num_actions = len(self.action_space)
+        self.q_values = torch.zeros(self.action_space.shape, dtype=torch.float32)
 
         # 하이퍼파라미터
         self.epsilon = EPSILON
@@ -38,11 +36,6 @@ class DQN_Agent:
         self.batch_size = BATCH_SIZE
         self.gamma = GAMMA
 
-        # 추가
-        self.nrow = state_size[0]
-        self.ncol = state_size[1]
-        self.n = self.nrow*self.ncol
-
         # 리플레이 메모리
         self.memory = deque(maxlen = MEM_SIZE)
 
@@ -50,12 +43,17 @@ class DQN_Agent:
         self.device = DEVICE
 
         # model, target model gpu 올리고 초기화
-        self.model = Net(state_size, len(action), CONV_UNITS).to(self.device)
-        self.target_model = Net(state_size, len(action), CONV_UNITS).to(self.device)
+        if self.state_type == "one-hot":
+            self.model = NetOneHot(STATE_SIZE, self.num_actions, CONV_UNITS).to(self.device)
+            self.target_model = NetOneHot(STATE_SIZE, self.num_actions, CONV_UNITS).to(self.device)
+        else:
+            self.model = Net(STATE_SIZE, self.num_actions, CONV_UNITS).to(self.device)
+            self.target_model = Net(STATE_SIZE, self.num_actions, CONV_UNITS).to(self.device)
+
         self.update_target_model()
         self.loss_func = LOSS_FUNC
 
-        self.optimizer = OPTIMIZER(self.model.parameters, lr=LEARN_MAX)
+        self.optimizer = OPTIMIZER(self.model.parameters(), lr=LEARN_MAX)
 
 
     def update_target_model(self):
@@ -67,22 +65,37 @@ class DQN_Agent:
         # 샘플을 리플레이 메모리에 저장하는 함수
         self.memory.append((state, action, reward, next_state, done, clear))
 
+    
+    def change_state_type(self, state):
+        assert state.dim() == 4, f"The tensor must be 4-dimensional. 현재 차원: {state.dim()}"
+
+        if self.state_type == "original":
+            norm_state = state
+        
+        elif self.state_type == "normalization":
+            norm_state = mine_normalize(state)
+
+        elif self.state_type == "one-hot":
+            norm_state = one_hot_scaling(state)
+        
+        return norm_state
+
 
     def get_action(self, state):
         '''
-        입력받은 state에 따라 action을 선택한다. (학습하지 않음)
+        입력받은 state에 따라 action을 선택한다.
         '''
         state = torch.tensor(state).to(self.device)
 
         if np.random.rand() <= self.epsilon:  # 엡실론 무작위 탐색
-            act = random.choice(self.action)
+            act = random.choice(self.action_space)
 
         else :
             state = state.unsqueeze(0).to(dtype = torch.float32)
-            state = state.unsqueeze(0)
+            state = state.unsqueeze(0)  # torch.Size([1, 1, 9, 9])
 
             # 정규화
-            state = state / 8
+            state = self.change_state_type(state)
 
             with torch.no_grad():
                 q_values = self.model(state).flatten().to("cpu")
@@ -103,17 +116,20 @@ class DQN_Agent:
         mini_batch = random.sample(self.memory, batch_size)
 
         # 추출한 샘플 tensor로 가져오기
-        # 상태 정규화 포함
-        states = torch.tensor([sample[0]/8 for sample in mini_batch], dtype=torch.float32).to(self.device).reshape(-1,1,self.nrow,self.ncol)
+        states = torch.tensor([sample[0] for sample in mini_batch], dtype=torch.float32).to(self.device).reshape(-1,1,self.nrow,self.ncol)
         actions = torch.tensor([sample[1] for sample in mini_batch], dtype=torch.long).to(self.device).reshape(-1,1)
         rewards = torch.tensor([sample[2] for sample in mini_batch], dtype=torch.float32).to(self.device).reshape(-1,1)
-        next_states = torch.tensor([sample[3]/8 for sample in mini_batch], dtype=torch.float32).to(self.device).reshape(-1,1,self.nrow,self.ncol)
+        next_states = torch.tensor([sample[3] for sample in mini_batch], dtype=torch.float32).to(self.device).reshape(-1,1,self.nrow,self.ncol)
         dones = torch.tensor([sample[4] for sample in mini_batch], dtype=torch.long).to(self.device).reshape(-1,1)
         clears = torch.tensor([sample[5] for sample in mini_batch], dtype=torch.bool).reshape(-1,1)
 
+        # state 정규화
+        states = self.change_state_type(states)
+        next_states = self.change_state_type(next_states)
+
         # 현재 상태에 대한 모델의 큐함수
         predicts = self.model(states) # 현재 상태의 좌표를 준다
-        one_hot_action = F.one_hot(actions, self.n).to(self.device)
+        one_hot_action = F.one_hot(actions, self.num_actions).to(self.device)
         predicts = torch.sum(one_hot_action*predicts, axis=1)
 
          # Q(s,a) 값을 예측값으로 사용 - (batch, action_space.n)
