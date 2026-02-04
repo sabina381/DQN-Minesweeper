@@ -1,24 +1,12 @@
-import time
-import os
 import pickle
 import numpy as np
 import pandas as pd
 from typing import Tuple
-from collections import deque
-import copy
-from scipy.special import softmax
-import random
-from collections import defaultdict
-import matplotlib.pyplot as plt
-import seaborn as sns
-
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
 
 from environment import Environment
 from dqn_agent import DQN_Agent
+
+from visualization import *
 ########################################
 class Trainer:
     def __init__(self, 
@@ -325,6 +313,18 @@ class Trainer:
             print(f"- Reward: {round(np.mean(self.test_rewards_list[-self.print_every:]), 3)}/{round(np.median(self.test_rewards_list[-self.print_every:]), 3)}", end="\n")
             self.env.render(self.env.present_state)
 
+        
+    def visualize_log(self):
+        file_path = f"{self.path}/{self.folder_name}_{self.mode}_log.pkl"
+
+        if self.mode == 'train':
+            visualize_train_log(file_path)
+
+        else:
+            visualize_test_log(file_path)
+
+        print("Visualizing complete")
+
 
     def train(self):
         self.reset()
@@ -375,8 +375,10 @@ class Trainer:
                 self._print_log()
 
             if (episode+1) % self.valid_every == 0:
+                self.visualize_log()
                 self.valid()
 
+        self.visualize_log()
         print(f"Train completed. total avg win rate: {round(np.mean(self.clear_list), 3)}")
 
 
@@ -406,6 +408,7 @@ class Trainer:
                 self._print_log()
 
         self.save_log()
+        self.visualize_log()
         print(f"Valid completed. Average win rate: {round(np.mean(self.valid_clear_list), 3)} / Average cnt: {round(np.mean(self.valid_cnt_list), 3)} / Average Reward: {round(np.mean(self.valid_rewards_list), 3)}")
 
 
@@ -436,4 +439,5 @@ class Trainer:
                 self._print_log()
 
         self.save_log()
+        self.visualize_log()
         print(f"Test completed. Average win rate: {round(np.mean(self.test_clear_list), 3)} / Average cnt: {round(np.mean(self.test_cnt_list), 3)} / Average Reward: {round(np.mean(self.test_rewards_list), 3)}")

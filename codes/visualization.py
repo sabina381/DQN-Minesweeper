@@ -18,60 +18,62 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 ########################################
-def visualizing(file):
+def visualize_train_log(file):
     with open(file, 'rb') as f:
         df = pickle.load(f)
 
-    fig, axs = plt.subplots(3, 4, figsize=(20, 15), squeeze=False)
-    axs[0, 0].plot(df['ave_rewards'], color = 'blue')
-    axs[0, 0].set_title("Avg Reward")
-    axs[0, 1].plot(df['mid_rewards'], color = 'blue')
-    axs[0, 1].set_title("Median Reward")
-    axs[0, 2].plot(df['rewards'], color = 'blue')
-    axs[0, 2].set_title("Reward")
+    fig, axs = plt.subplots(4, 2, figsize=(20, 15), squeeze=False)
+    axs[0, 0].plot(df['avg_rewards'], color = 'blue')
+    axs[0, 0].plot(df['mid_rewards'], color = 'red')
+    axs[0, 0].set_title("Average / Median Reward")
+    axs[0, 1].bar(df['rewards'], color = 'black')
+    axs[0, 1].axhline(y=0, color='black', linewidth=1)
+    axs[0, 1].set_title("Reward")
 
-    axs[1, 0].plot(df['ave_count'], color = 'skyblue')
-    axs[1, 0].set_title("Avg Cnt")
-    axs[1, 1].plot(df['mid_count'], color = 'skyblue')
-    axs[1, 1].set_title("Median Cnt")
-    axs[1, 2].plot(df['cnt'], color = 'skyblue')
-    axs[1, 2].set_title("Cnt")
+    axs[1, 0].plot(df['avg_count'], color = 'blue')
+    axs[1, 0].plot(df['mid_count'], color = 'red')
+    axs[1, 0].set_title("Average / Median Cnt")
+    axs[1, 1].plot(df['cnt'], color = 'black')
+    axs[1, 1].set_title("Cnt")
 
-    axs[2, 0].plot(df['ave_loss'], color = 'green')
-    axs[2, 0].set_title("Avg Loss")
-    axs[2, 1].plot(df['mid_loss'], color = 'green')
-    axs[2, 1].set_title("Median Loss")
-    axs[2, 2].plot(df['loss'], color = 'green')
-    axs[2, 2].set_title('Loss')
+    axs[2, 0].plot(df['avg_loss'], color = 'blue')
+    axs[2, 0].plot(df['mid_loss'], color = 'red')
+    axs[2, 0].set_title("Average / Median Loss")
+    axs[2, 1].plot(df['loss'], color = 'black')
+    axs[2, 1].set_title('Loss')
 
-    axs[0, 3].plot(df['ave_clear'], color = 'red')
-    axs[0, 3].set_title("Avg Clear")
-    axs[1, 3].plot(df['lr'], color = 'grey')
+    axs[3, 0].plot(df['avg_clear'], color = 'blue')
+    axs[3, 0].plot(df['mid_clear'], color = 'red')
+    axs[3, 0].set_title("Average / Median Clear")
+
+    axs[3, 1].plot(df['lr'], color = 'grey')
     axs[1, 3].set_title("Learning Rate")
 
     plt.show()
 
 
-def test_visualizing(file):
+def visualize_test_log(file):
     with open(file, 'rb') as f:
         df = pickle.load(f)
 
-    fig, axs = plt.subplots(2, 4, figsize=(20, 10), squeeze=False)
+    fig, axs = plt.subplots(3, 2, figsize=(20, 10), squeeze=False)
     axs[0, 0].plot(df['avg_rewards'], color = 'blue')
-    axs[0, 0].set_title("Avg Reward")
-    axs[0, 1].plot(df['mid_rewards'], color = 'blue')
-    axs[0, 1].set_title("Median Reward")
-    axs[0, 2].plot(df['rewards'], color = 'blue')
-    axs[0, 2].set_title("Reward")
+    axs[0, 0].plot(df['mid_rewards'], color = 'red')
+    axs[0, 0].set_title("Average / Median Reward")
+    axs[0, 1].bar(df['rewards'], color = 'black')
+    axs[0, 1].axhline(y=0, color='black', linewidth=1)
+    axs[0, 1].set_title("Reward")
 
-    axs[1, 0].plot(df['avg_count'], color = 'skyblue')
-    axs[1, 0].set_title("Avg Cnt")
-    axs[1, 1].plot(df['mid_count'], color = 'skyblue')
-    axs[1, 1].set_title("Median Cnt")
-    axs[1, 2].plot(df['cnt'], color = 'skyblue')
-    axs[1, 2].set_title("Cnt")
+    axs[1, 0].plot(df['avg_count'], color = 'blue')
+    axs[1, 0].plot(df['mid_count'], color = 'red')
+    axs[1, 0].set_title("Average / Median Cnt")
+    axs[1, 1].plot(df['cnt'], color = 'black')
+    axs[1, 1].set_title("Cnt")
 
-    axs[0, 3].plot(df['avg_clear'], color = 'red')
-    axs[0, 3].set_title("Avg Clear")
+    axs[3, 0].plot(df['avg_clear'], color = 'blue')
+    axs[3, 0].plot(df['mid_clear'], color = 'red')
+    axs[3, 0].set_title("Average / Median Clear")
+    axs[3, 1].bar(df['clear'], color = 'black')
+    axs[3, 1].set_title("Clear")
 
     plt.show()
