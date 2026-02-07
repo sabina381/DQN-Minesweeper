@@ -15,7 +15,7 @@ class DQN_Agent:
     def __init__(self, STATE_SIZE:Tuple, STATE_TYPE:str, NUM_MINE:int,
                 EPSILON:float, EPSILON_DECAY:float, EPSILON_MIN:float, 
                 BATCH_SIZE:int, GAMMA:float, MEM_SIZE:int, 
-                LEARN_MAX:float, LEARN_MIN:float, LEARN_DECAY:float, LEARN_EPOCH:float,
+                LEARN_MAX:float,
                 CONV_UNITS:int, 
                 DEVICE, LOSS_FUNC, OPTIMIZER):
 
@@ -56,9 +56,11 @@ class DQN_Agent:
         if self.state_type == "one-hot":
             self.model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
             self.target_model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
+            self.best_model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
         else:
             self.model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
             self.target_model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
+            self.best_model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
         self.update_target_model()
 
         self.loss_func = LOSS_FUNC
@@ -191,3 +193,38 @@ class DQN_Agent:
 
         self.optimizer = self.optimizer_type(self.model.parameters(), lr=self.lr_init)
 
+
+    def get_action_latest(self, state):
+        state = torch.tensor(state).to(self.device)
+        state = state.unsqueeze(0).to(dtype = torch.float32)
+        state = state.unsqueeze(0)  # torch.Size([1, 1, 9, 9])
+
+        # 정규화
+        state = self.change_state_type(state)
+
+        with torch.no_grad():
+            q_values = self.model(state).flatten().to("cpu")
+            max_idx = torch.argmax(q_values)
+            act = max_idx.item()
+
+            self.q_values = q_values
+
+        return act
+
+    
+    def get_action_best(self, state):
+        state = torch.tensor(state).to(self.device)
+        state = state.unsqueeze(0).to(dtype = torch.float32)
+        state = state.unsqueeze(0)  # torch.Size([1, 1, 9, 9])
+
+        # 정규화
+        state = self.change_state_type(state)
+
+        with torch.no_grad():
+            q_values = self.best_model(state).flatten().to("cpu")
+            max_idx = torch.argmax(q_values)
+            act = max_idx.item()
+
+            self.q_values = q_values
+
+        return act

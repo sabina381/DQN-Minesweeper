@@ -1,4 +1,5 @@
 import pickle
+from pathlib import Path
 import numpy as np
 import pandas as pd
 from typing import Tuple
@@ -42,6 +43,8 @@ class Trainer:
                             LOSS_FUNC= LOSS_FUNC, 
                             OPTIMIZER= OPTIMIZER)
 
+        self.device = DEVICE
+
         self.cnt_limit = self.env.nrow * self.env.ncol - self.env.num_mine
         self.train_start = TRAIN_START
 
@@ -52,6 +55,7 @@ class Trainer:
         self.folder_name = FOLDER_NAME
         self.path = f"{PATH}/{FOLDER_NAME}"
         self.episodes = EPISODES
+
         self.update_target_every = UPDATE_TARGET_EVERY
         self.print_every = PRINT_EVERY
         self.save_every = SAVE_EVERY
@@ -64,7 +68,22 @@ class Trainer:
         self.valid_total_episodes = VALID_EPISODES
         self.test_total_episodes = 0
 
-    
+    def reset_valid_logs(self):
+        self.valid_epi = 0
+
+        self.valid_rewards_list = []
+        self.valid_avg_rewards_list = []
+        self.valid_mid_rewards_list = []
+
+        self.valid_clear_list = []
+        self.valid_avg_clear_list = []
+        self.valid_mid_clear_list = []
+
+        self.valid_cnt_list = []
+        self.valid_avg_cnt_list = []
+        self.valid_mid_cnt_list = []
+
+
     def reset_logs(self):
         # train
         self.current_epi = 0
@@ -88,19 +107,7 @@ class Trainer:
         self.lr_list = []
 
         # valid
-        self.valid_epi = 0
-
-        self.valid_rewards_list = []
-        self.valid_avg_rewards_list = []
-        self.valid_mid_rewards_list = []
-
-        self.valid_clear_list = []
-        self.valid_avg_clear_list = []
-        self.valid_mid_clear_list = []
-
-        self.valid_cnt_list = []
-        self.valid_avg_cnt_list = []
-        self.valid_mid_cnt_list = []
+        self.reset_valid_logs()
 
         # test
         self.test_epi = 0
@@ -118,23 +125,46 @@ class Trainer:
         self.test_mid_cnt_list = []
 
 
-    def load_model(self):
-        file_path = f"{self.path}/{self.folder_name}_model.pkl"
+    def load_model(self, model_name):
+        file_path = f"{self.path}/{self.folder_name}_model_{model_name}.pkl"
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(file_path, 'rb') as f:
+        if not path.exists():
+            if model_name == 'best':
+                with open(path, 'wb') as f:
+                    pickle.dump(self.agent.model.state_dict(), f)
+                    print("Create best model")
+                    
+            else:
+                print("Create new model")
+                return
+
+        with open(path, 'rb') as f:
             model_param = pickle.load(f)
 
-        # reset 메서드 만들어서 거기로 뺄까?
-        self.agent.model.load_state_dict(model_param)
-        self.agent.target_model.load_state_dict(model_param)
+        if model_name == 'best':
+            self.agent.best_model.load_state_dict(model_param)
+            self.agent.best_model.to(self.device)
+
+        else:
+            self.agent.model.load_state_dict(model_param)
+            self.agent.target_model.load_state_dict(model_param)
+
+            self.agent.model.to(self.device)
+            self.agent.target_model.to(self.device)
+            
         print(f"Model loaded from \'{file_path}\'")
 
 
-    def save_model(self):
+    def save_model(self, model_name):
         self.agent.model.to("cpu")
 
-        file_path = f"{self.path}/{self.folder_name}_model.pkl"
-        with open(file_path, 'wb') as f:
+        file_path = f"{self.path}/{self.folder_name}_model_{model_name}.pkl"
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+            
+        with open(path, 'wb') as f:
             pickle.dump(self.agent.model.state_dict(), f)
         
         print(f"Model saved to \'{file_path}\'")
@@ -142,17 +172,22 @@ class Trainer:
     
     def _save_memory(self):
         file_path = f"{self.path}/{self.folder_name}_memory.pkl"
-        with open(file_path, 'wb') as f:
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(path, 'wb') as f:
             pickle.dump(self.agent.memory, f)
 
 
     def reset(self):
-        self.env = self.env.reset()
-        self.agent = self.agent.reset()
-        self.load_model()
+        self.env.reset()
+        self.agent.reset()
+        self.load_model('latest')
+
 
     def _game_reset(self):
         self.env.reset()
+
         state = self.env.present_state.copy()
         done = False
         clear = False
@@ -163,16 +198,6 @@ class Trainer:
         self.agent.action_space = self.env.points.copy()
 
         return state, done, clear, total_reward, cnt, loss
-
-
-    def _step_one_turn(self, state):
-        action = self.agent.get_action(state)
-        next_state, reward, done, clear = self.env.step(action)
-
-        # count 제한 : 전체 칸 수 - 지뢰 개수
-        done = self._check_cnt_limit()
-
-        return state, action, reward, next_state, done, clear
 
     
     def _check_cnt_limit(self, cnt:int):
@@ -185,50 +210,50 @@ class Trainer:
             total_reward, clear, cnt, loss = logs
 
             self.rewards_list.append(total_reward)
-            self.avg_rewards_list.append(np.mean(self.rewards_list[-self.print_every:]))
-            self.mid_rewards_list.append(np.median(self.rewards_list[-self.print_every:]))
+            self.avg_rewards_list.append(np.mean(self.rewards_list[-100:]))
+            self.mid_rewards_list.append(np.median(self.rewards_list[-100:]))
 
             self.clear_list.append(clear)
-            self.avg_clear_list.append(np.mean(self.clear_list[-self.print_every:]))
-            self.mid_clear_list.append(np.median(self.clear_list[-self.print_every:]))
+            self.avg_clear_list.append(np.mean(self.clear_list[-100:]))
+            self.mid_clear_list.append(np.median(self.clear_list[-100:]))
 
             self.cnt_list.append(cnt)
-            self.avg_cnt_list.append(np.mean(self.cnt_list[-self.print_every:]))
-            self.mid_cnt_list.append(np.median(self.cnt_list[-self.print_every:]))
+            self.avg_cnt_list.append(np.mean(self.cnt_list[-100:]))
+            self.mid_cnt_list.append(np.median(self.cnt_list[-100:]))
 
             self.loss_list.append(loss)
-            self.avg_loss_list.append(np.mean(self.loss_list[-self.print_every*10:]))
-            self.mid_loss_list.append(np.median(self.loss_list[-self.print_every*10:]))
+            self.avg_loss_list.append(np.mean(self.loss_list[-100:]))
+            self.mid_loss_list.append(np.median(self.loss_list[-100:]))
 
             self.lr_list.append(self.agent.optimizer.param_groups[0]['lr'])
 
         elif self.mode == 'valid':
             total_reward, clear, cnt = logs
             self.valid_rewards_list.append(total_reward)
-            self.valid_avg_rewards_list.append(np.mean(self.valid_rewards_list[-self.print_every:]))
-            self.valid_mid_rewards_list.append(np.median(self.valid_rewards_list[-self.print_every:]))
+            self.valid_avg_rewards_list.append(np.mean(self.valid_rewards_list[-100:]))
+            self.valid_mid_rewards_list.append(np.median(self.valid_rewards_list[-100:]))
 
             self.valid_clear_list.append(clear)
-            self.valid_avg_clear_list.append(np.mean(self.valid_clear_list[-self.print_every:]))
-            self.valid_mid_clear_list.append(np.median(self.valid_clear_list[-self.print_every:]))
+            self.valid_avg_clear_list.append(np.mean(self.valid_clear_list[-100:]))
+            self.valid_mid_clear_list.append(np.median(self.valid_clear_list[-100:]))
 
             self.valid_cnt_list.append(cnt)
-            self.valid_avg_cnt_list.append(np.mean(self.valid_cnt_list[-self.print_every:]))
-            self.valid_mid_cnt_list.append(np.median(self.valid_cnt_list[-self.print_every:]))
+            self.valid_avg_cnt_list.append(np.mean(self.valid_cnt_list[-100:]))
+            self.valid_mid_cnt_list.append(np.median(self.valid_cnt_list[-100:]))
 
         elif self.mode == 'test':
             total_reward, clear, cnt, loss = logs
             self.test_rewards_list.append(total_reward)
-            self.test_avg_rewards_list.append(np.mean(self.test_rewards_list[-self.print_every:]))
-            self.test_mid_rewards_list.append(np.median(self.test_rewards_list[-self.print_every:]))
+            self.test_avg_rewards_list.append(np.mean(self.test_rewards_list[-100:]))
+            self.test_mid_rewards_list.append(np.median(self.test_rewards_list[-100:]))
 
             self.test_clear_list.append(clear)
-            self.test_avg_clear_list.append(np.mean(self.test_clear_list[-self.print_every:]))
-            self.test_mid_clear_list.append(np.median(self.test_clear_list[-self.print_every:]))
+            self.test_avg_clear_list.append(np.mean(self.test_clear_list[-100:]))
+            self.test_mid_clear_list.append(np.median(self.test_clear_list[-100:]))
 
             self.test_cnt_list.append(cnt)
-            self.test_avg_cnt_list.append(np.mean(self.test_cnt_list[-self.print_every:]))
-            self.test_mid_cnt_list.append(np.median(self.test_cnt_list[-self.print_every:]))
+            self.test_avg_cnt_list.append(np.mean(self.test_cnt_list[-100:]))
+            self.test_mid_cnt_list.append(np.median(self.test_cnt_list[-100:]))
 
 
     def save_log(self):
@@ -272,7 +297,10 @@ class Trainer:
             df['mid_cnt'] = self.test_mid_cnt_list
 
         file_path = f"{self.path}/{self.folder_name}_{self.mode}_log.pkl"
-        with open(file_path, 'wb') as f:
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(path, 'wb') as f:
             pickle.dump(df, f)
             
         print(f"{self.mode} logs saved to \'{file_path}\'")
@@ -280,7 +308,10 @@ class Trainer:
     
     def load_log(self):
         file_path = f"{self.path}/{self.folder_name}_{self.mode}_log.pkl"
-        with open(file_path, 'rb') as f:
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(path, 'rb') as f:
             train_log = pickle.load(f)  # df
         
         return train_log
@@ -289,27 +320,25 @@ class Trainer:
     def _print_log(self):
         if self.mode == 'train':
             print("="*30, end="\n")
-            print(f"[{self.current_epi+1}/{self.episodes}] epsilon: {round(self.agent.epsilon, 5)} | lr: {round(self.agent.lr, 5)}", end="\n\t")
-            print(f"- Avg Clear: {round(np.mean(self.clear_list[-self.print_every:]), 3)}", end="\n\t")
-            print(f"- Cnt: {round(np.mean(self.cnt_list[-self.print_every:]), 3)}/{round(np.median(self.cnt_list[-self.print_every:]), 3)}", end="\n\t")
-            print(f"- Reward: {round(np.mean(self.rewards_list[-self.print_every:]), 3)}/{round(np.median(self.rewards_list[-self.print_every:]), 3)}", end="\n\t")
+            print(f"[{self.current_epi}/{self.episodes}] epsilon: {round(self.agent.epsilon, 5)} | lr: {round(self.agent.lr, 5)}", end="\n\t")
+            print(f"- Avg Clear: {round(np.mean(self.clear_list[-self.print_every:]), 3)}", end="\t")
+            print(f"- Cnt: {round(np.mean(self.cnt_list[-self.print_every:]), 3)}/{round(np.median(self.cnt_list[-self.print_every:]), 3)}", end="\t")
+            print(f"- Reward: {round(np.mean(self.rewards_list[-self.print_every:]), 3)}/{round(np.median(self.rewards_list[-self.print_every:]), 3)}", end="\t")
             print(f"- Loss: {round(np.mean(self.loss_list[-self.print_every:]), 3)}/{round(np.median(self.loss_list[-self.print_every:]), 3)}", end="\n")
-            self.env.render(self.env.present_state)
 
         elif self.mode == 'valid':
-            print("\t", end="")
             print("=valid"*5, end="\n")
-            print(f"[{self.valid_epi+1}/{self.valid_total_episodes}]", end="\n\t\t")
-            print(f"- Avg Clear: {round(np.mean(self.valid_clear_list[-self.print_every:]), 3)}", end="\n\t\t")
-            print(f"- Cnt: {round(np.mean(self.valid_cnt_list[-self.print_every:]), 3)}/{round(np.median(self.valid_cnt_list[-self.print_every:]), 3)}", end="\n\t\t")
+            print(f"[{self.valid_epi}/{self.valid_total_episodes}]", end="\n\t")
+            print(f"- Avg Clear: {round(np.mean(self.valid_clear_list[-self.print_every:]), 3)}", end="\t")
+            print(f"- Cnt: {round(np.mean(self.valid_cnt_list[-self.print_every:]), 3)}/{round(np.median(self.valid_cnt_list[-self.print_every:]), 3)}", end="\t")
             print(f"- Reward: {round(np.mean(self.valid_rewards_list[-self.print_every:]), 3)}/{round(np.median(self.valid_rewards_list[-self.print_every:]), 3)}", end="\n")
             self.env.render(self.env.present_state)
 
         elif self.mode == 'test':
             print("="*30, end="\n")
-            print(f"[{self.test_epi+1}/{self.test_total_episodes}]", end="\n\t")
-            print(f"- Avg Clear: {round(np.mean(self.test_clear_list[-self.print_every:]), 3)}", end="\n\t")
-            print(f"- Cnt: {round(np.mean(self.test_cnt_list[-self.print_every:]), 3)}/{round(np.median(self.test_cnt_list[-self.print_every:]), 3)}", end="\n\t")
+            print(f"[{self.test_epi}/{self.test_total_episodes}]", end="\n\t")
+            print(f"- Avg Clear: {round(np.mean(self.test_clear_list[-self.print_every:]), 3)}", end="\t")
+            print(f"- Cnt: {round(np.mean(self.test_cnt_list[-self.print_every:]), 3)}/{round(np.median(self.test_cnt_list[-self.print_every:]), 3)}", end="\t")
             print(f"- Reward: {round(np.mean(self.test_rewards_list[-self.print_every:]), 3)}/{round(np.median(self.test_rewards_list[-self.print_every:]), 3)}", end="\n")
             self.env.render(self.env.present_state)
 
@@ -332,6 +361,7 @@ class Trainer:
 
         for episode in range(self.episodes):
             self.mode = 'train'
+            self.agent.model.to(self.device)
             self.current_epi += 1
             # reset
             state, done, clear, total_reward, cnt, loss = self._game_reset()
@@ -339,9 +369,14 @@ class Trainer:
             # 게임 종료까지 반복
             while not done:
                 cnt+=1
-
-                state, action, reward, next_state, done, clear = self._step_one_turn(state)
+                state = self.env.present_state.copy()
+                action = self.agent.get_action(state)
+                next_state, reward, done, clear = self.env.step(action)
                 total_reward += reward
+
+                # count 제한 : 전체 칸 수 - 지뢰 개수
+                if not done:
+                    done = self._check_cnt_limit(cnt)
 
                 # replay memory에 샘플 저장
                 self.agent.append_sample(state, action, reward, next_state, done, clear)
@@ -368,7 +403,7 @@ class Trainer:
                     self.agent.optimizer.param_groups[0]['lr'] = max(lr, self.lr_min)
 
             if ((episode+1) % self.save_every == 0) or ((episode+1) == self.episodes):
-                self.save_model()
+                self.save_model('latest')
                 self.save_log()
 
             if (episode+1) % self.print_every == 0:
@@ -376,6 +411,7 @@ class Trainer:
 
             if (episode+1) % self.valid_every == 0:
                 self.visualize_log()
+
                 self.valid()
 
         self.visualize_log()
@@ -384,36 +420,63 @@ class Trainer:
 
     def valid(self):
         self.mode = 'valid'
-        print("Start valid")
+        print("Start valid - latest model")
+        self.agent.model.to(self.device)
 
-        for episode in range(self.valid_total_episodes):
-            self.valid_epi += 1
-            # reset
-            state, done, clear, total_reward, cnt, _ = self._game_reset()
+        for i in range(2):
+            if i == 1:  # best
+                self.load_model('best')
+                self.agent.best_model.to(self.device)
 
-            # 게임 종료까지 반복
-            while not done:
-                cnt+=1
+            # latest
+            for episode in range(self.valid_total_episodes):
+                self.valid_epi += 1
+                # reset
+                state, done, clear, total_reward, cnt, _ = self._game_reset()
 
-                state, action, reward, next_state, done, clear = self._step_one_turn(state)
-                total_reward += reward
+                # 게임 종료까지 반복
+                while not done:
+                    cnt+=1
 
-                if done or clear:
-                    break
+                    if i == 1:  # best
+                        action = self.agent.get_action_best(state)
+                    else:       # latest
+                        action = self.agent.get_action_latest(state)
 
-            # 평가지표
-            self._update_log([total_reward, clear, cnt])
+                    state, reward, done, clear = self.env.step(action)
+                    total_reward += reward
 
-            if (episode+1) % self.print_every == 0:
-                self._print_log()
+                    # count 제한 : 전체 칸 수 - 지뢰 개수
+                    if not done:
+                        done = self._check_cnt_limit(cnt)
 
-        self.save_log()
-        self.visualize_log()
-        print(f"Valid completed. Average win rate: {round(np.mean(self.valid_clear_list), 3)} / Average cnt: {round(np.mean(self.valid_cnt_list), 3)} / Average Reward: {round(np.mean(self.valid_rewards_list), 3)}")
+                    if done or clear:
+                        break
+
+                # 평가지표
+                self._update_log([total_reward, clear, cnt])
+
+                if (episode+1) % self.print_every == 0:
+                    self._print_log()
+
+            if i == 1:  # best
+                best_score = np.mean(self.valid_rewards_list)
+                print(f"Valid best model completed. Average win rate: {round(np.mean(self.valid_clear_list), 3)} / Average cnt: {round(np.mean(self.valid_cnt_list), 3)} / Average Reward: {round(best_score, 3)}")
+                
+            else:       # latest
+                latest_score = np.mean(self.valid_rewards_list)
+                print(f"Valid latest model completed. Average win rate: {round(np.mean(self.valid_clear_list), 3)} / Average cnt: {round(np.mean(self.valid_cnt_list), 3)} / Average Reward: {round(latest_score, 3)}")
+            
+            self.reset_valid_logs()
+
+        if latest_score > best_score:
+            print(f"Update best model. latest model score: {latest_score} > best model score: {best_score}")
+            self.save_model('best')
 
 
     def test(self, num_episodes):
         self.mode = 'test'
+        self.agent.best_model.to(self.device)
         self.test_total_episodes = num_episodes
         print("Test start")
 
@@ -426,8 +489,13 @@ class Trainer:
             while not done:
                 cnt+=1
 
-                state, action, reward, next_state, done, clear = self._step_one_turn(state)
+                action = self.agent.get_action_best(state)
+                state, reward, done, clear = self.env.step(action)
                 total_reward += reward
+
+                # count 제한 : 전체 칸 수 - 지뢰 개수
+                if not done:
+                    done = self._check_cnt_limit(cnt)
 
                 if done or clear:
                     break
