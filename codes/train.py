@@ -8,11 +8,12 @@ from environment import Environment
 from dqn_agent import DQN_Agent
 
 from visualization import *
+from log import Log
 ########################################
 class Trainer:
     def __init__(self, 
                 # Trainer
-                FOLDER_NAME:str, PATH:str, EPISODES:int, VALID_EPISODES:int,
+                FOLDER_NAME:str, PATH:str, EPISODES:int, VALID_EPISODES:int, LAG:int,
                 UPDATE_TARGET_EVERY:int, PRINT_EVERY:int, SAVE_EVERY:int, VALID_EVERY:int,
                 TRAIN_START:int, LEARN_MIN:float, LEARN_DECAY:float, LEARN_EPOCH:float,
                 # Environment
@@ -54,79 +55,53 @@ class Trainer:
 
         self.folder_name = FOLDER_NAME
         self.path = f"{PATH}/{FOLDER_NAME}"
+        self.create_path()
+
         self.episodes = EPISODES
+        self.valid_total_episodes = VALID_EPISODES
+        self.test_total_episodes = 0
 
         self.update_target_every = UPDATE_TARGET_EVERY
         self.print_every = PRINT_EVERY
         self.save_every = SAVE_EVERY
         self.valid_every = VALID_EVERY
+        self.lag = LAG
 
         self.mode = "train"
+        
+        self.train_log = Log(MODE= 'train', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
+        self.valid_log = Log(MODE= 'valid', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
+        self.test_log = Log(MODE= 'test', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
 
-        self.reset_logs()
+        self.log_dict = dict({'train': self.train_log, 
+                            'valid': self.valid_log, 
+                            'test': self.test_log})
 
-        self.valid_total_episodes = VALID_EPISODES
-        self.test_total_episodes = 0
+        self.cur_epi_dict = dict({'train': 0, 'valid': 0, 'test': 0})
 
-    def reset_valid_logs(self):
-        self.valid_epi = 0
+    def create_path(self):
+        self.path_dict = ({'model': Path(f"{self.path}/models"),
+                        'log_message': Path(f"{self.path}/{self.folder_name}_training_log.txt"),
+                        'logs': Path(f"{self.path}/logs"),
+                        'graph': Path(f"{self.path}/graphs"),
+                        'memory': Path(f"{self.path}/memory.pkl")})
 
-        self.valid_rewards_list = []
-        self.valid_avg_rewards_list = []
-        self.valid_mid_rewards_list = []
+        self.path_dict['log_message'].parent.mkdir(parents=True, exist_ok=True)
+        self.path_dict['memory'].parent.mkdir(parents=True, exist_ok=True)
+        self.path_dict['model'].mkdir(parents=True, exist_ok=True)
+        self.path_dict['logs'].mkdir(parents=True, exist_ok=True)
+        self.path_dict['graph'].mkdir(parents=True, exist_ok=True)
 
-        self.valid_clear_list = []
-        self.valid_avg_clear_list = []
-        self.valid_mid_clear_list = []
+        if not Path(self.path_dict['log_message']).exists():
+            with open(self.path_dict['log_message'], "w") as f:
+                f.write(f"Training Log for {self.folder_name}\n")
+                f.write("="*50 + "\n")
 
-        self.valid_cnt_list = []
-        self.valid_avg_cnt_list = []
-        self.valid_mid_cnt_list = []
-
-
-    def reset_logs(self):
-        # train
-        self.current_epi = 0
-
-        self.rewards_list = []
-        self.avg_rewards_list = []
-        self.mid_rewards_list = []
-
-        self.clear_list = []
-        self.avg_clear_list = []
-        self.mid_clear_list = []
-
-        self.cnt_list = []
-        self.avg_cnt_list = []
-        self.mid_cnt_list = []
-
-        self.loss_list = []
-        self.avg_loss_list = []
-        self.mid_loss_list = []
-
-        self.lr_list = []
-
-        # valid
-        self.reset_valid_logs()
-
-        # test
-        self.test_epi = 0
-
-        self.test_rewards_list = []
-        self.test_avg_rewards_list = []
-        self.test_mid_rewards_list = []
-
-        self.test_clear_list = []
-        self.test_avg_clear_list = []
-        self.test_mid_clear_list = []
-
-        self.test_cnt_list = []
-        self.test_avg_cnt_list = []
-        self.test_mid_cnt_list = []
+        print(self.path_dict)
 
 
     def load_model(self, model_name):
-        file_path = f"{self.path}/{self.folder_name}_model_{model_name}.pkl"
+        file_path = f"{self.path_dict['model']}/{model_name}.pkl"
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -160,7 +135,7 @@ class Trainer:
     def save_model(self, model_name):
         self.agent.model.to("cpu")
 
-        file_path = f"{self.path}/{self.folder_name}_model_{model_name}.pkl"
+        file_path = f"{self.path_dict['model']}/{model_name}.pkl"
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
             
@@ -171,11 +146,7 @@ class Trainer:
 
     
     def _save_memory(self):
-        file_path = f"{self.path}/{self.folder_name}_memory.pkl"
-        path = Path(file_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(path, 'wb') as f:
+        with open(self.path_dict['memory'], 'wb') as f:
             pickle.dump(self.agent.memory, f)
 
 
@@ -183,6 +154,10 @@ class Trainer:
         self.env.reset()
         self.agent.reset()
         self.load_model('latest')
+
+        for key in self.cur_epi_dict.keys():
+            self.cur_epi_dict[key] = 0
+            self.log_dict[key].reset()
 
 
     def _game_reset(self):
@@ -205,152 +180,44 @@ class Trainer:
         return done
 
 
-    def _update_log(self, logs:list):
-        if self.mode == 'train':
-            total_reward, clear, cnt, loss = logs
-
-            self.rewards_list.append(total_reward)
-            self.avg_rewards_list.append(np.mean(self.rewards_list[-100:]))
-            self.mid_rewards_list.append(np.median(self.rewards_list[-100:]))
-
-            self.clear_list.append(clear)
-            self.avg_clear_list.append(np.mean(self.clear_list[-100:]))
-            self.mid_clear_list.append(np.median(self.clear_list[-100:]))
-
-            self.cnt_list.append(cnt)
-            self.avg_cnt_list.append(np.mean(self.cnt_list[-100:]))
-            self.mid_cnt_list.append(np.median(self.cnt_list[-100:]))
-
-            self.loss_list.append(loss)
-            self.avg_loss_list.append(np.mean(self.loss_list[-100:]))
-            self.mid_loss_list.append(np.median(self.loss_list[-100:]))
-
-            self.lr_list.append(self.agent.optimizer.param_groups[0]['lr'])
-
-        elif self.mode == 'valid':
-            total_reward, clear, cnt = logs
-            self.valid_rewards_list.append(total_reward)
-            self.valid_avg_rewards_list.append(np.mean(self.valid_rewards_list[-100:]))
-            self.valid_mid_rewards_list.append(np.median(self.valid_rewards_list[-100:]))
-
-            self.valid_clear_list.append(clear)
-            self.valid_avg_clear_list.append(np.mean(self.valid_clear_list[-100:]))
-            self.valid_mid_clear_list.append(np.median(self.valid_clear_list[-100:]))
-
-            self.valid_cnt_list.append(cnt)
-            self.valid_avg_cnt_list.append(np.mean(self.valid_cnt_list[-100:]))
-            self.valid_mid_cnt_list.append(np.median(self.valid_cnt_list[-100:]))
-
-        elif self.mode == 'test':
-            total_reward, clear, cnt, loss = logs
-            self.test_rewards_list.append(total_reward)
-            self.test_avg_rewards_list.append(np.mean(self.test_rewards_list[-100:]))
-            self.test_mid_rewards_list.append(np.median(self.test_rewards_list[-100:]))
-
-            self.test_clear_list.append(clear)
-            self.test_avg_clear_list.append(np.mean(self.test_clear_list[-100:]))
-            self.test_mid_clear_list.append(np.median(self.test_clear_list[-100:]))
-
-            self.test_cnt_list.append(cnt)
-            self.test_avg_cnt_list.append(np.mean(self.test_cnt_list[-100:]))
-            self.test_mid_cnt_list.append(np.median(self.test_cnt_list[-100:]))
-
-
-    def save_log(self):
-        df = pd.DataFrame()
-
-        if self.mode == 'train':
-            df['rewards'] = self.rewards_list
-            df['avg_rewards'] = self.avg_rewards_list
-            df['mid_rewards'] = self.mid_rewards_list
-            df['clear'] = self.clear_list
-            df['avg_clear'] = self.avg_clear_list
-            df['mid_clear'] = self.mid_clear_list
-            df['cnt'] = self.cnt_list
-            df['avg_cnt'] = self.avg_cnt_list
-            df['mid_cnt'] = self.mid_cnt_list
-            df['loss'] = self.loss_list
-            df['avg_loss'] = self.avg_loss_list
-            df['mid_loss'] = self.mid_loss_list
-            df['lr'] = self.lr_list
-
-        elif self.mode == 'valid':
-            df['rewards'] = self.valid_rewards_list
-            df['avg_rewards'] = self.valid_avg_rewards_list
-            df['mid_rewards'] = self.valid_mid_rewards_list
-            df['clear'] = self.valid_clear_list
-            df['avg_clear'] = self.valid_avg_clear_list
-            df['mid_clear'] = self.valid_mid_clear_list
-            df['cnt'] = self.valid_cnt_list
-            df['avg_cnt'] = self.valid_avg_cnt_list
-            df['mid_cnt'] = self.valid_mid_cnt_list
-
-        elif self.mode == 'test':
-            df['rewards'] = self.test_rewards_list
-            df['avg_rewards'] = self.test_avg_rewards_list
-            df['mid_rewards'] = self.test_mid_rewards_list
-            df['clear'] = self.test_clear_list
-            df['avg_clear'] = self.test_avg_clear_list
-            df['mid_clear'] = self.test_mid_clear_list
-            df['cnt'] = self.test_cnt_list
-            df['avg_cnt'] = self.test_avg_cnt_list
-            df['mid_cnt'] = self.test_mid_cnt_list
-
-        file_path = f"{self.path}/{self.folder_name}_{self.mode}_log.pkl"
-        path = Path(file_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(path, 'wb') as f:
-            pickle.dump(df, f)
-            
-        print(f"{self.mode} logs saved to \'{file_path}\'")
-
-    
-    def load_log(self):
-        file_path = f"{self.path}/{self.folder_name}_{self.mode}_log.pkl"
-        path = Path(file_path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-
-        with open(path, 'rb') as f:
-            train_log = pickle.load(f)  # df
-        
-        return train_log
-
-
     def _print_log(self):
-        if self.mode == 'train':
-            print("="*30, end="\n")
-            print(f"[{self.current_epi}/{self.episodes}] epsilon: {round(self.agent.epsilon, 5)} | lr: {round(self.agent.lr, 5)}", end="\n\t")
-            print(f"- Avg Clear: {round(np.mean(self.clear_list[-self.print_every:]), 3)}", end="\t")
-            print(f"- Cnt: {round(np.mean(self.cnt_list[-self.print_every:]), 3)}/{round(np.median(self.cnt_list[-self.print_every:]), 3)}", end="\t")
-            print(f"- Reward: {round(np.mean(self.rewards_list[-self.print_every:]), 3)}/{round(np.median(self.rewards_list[-self.print_every:]), 3)}", end="\t")
-            print(f"- Loss: {round(np.mean(self.loss_list[-self.print_every:]), 3)}/{round(np.median(self.loss_list[-self.print_every:]), 3)}", end="\n")
+        key = self.mode
 
-        elif self.mode == 'valid':
-            print("=valid"*5, end="\n")
-            print(f"[{self.valid_epi}/{self.valid_total_episodes}]", end="\n\t")
-            print(f"- Avg Clear: {round(np.mean(self.valid_clear_list[-self.print_every:]), 3)}", end="\t")
-            print(f"- Cnt: {round(np.mean(self.valid_cnt_list[-self.print_every:]), 3)}/{round(np.median(self.valid_cnt_list[-self.print_every:]), 3)}", end="\t")
-            print(f"- Reward: {round(np.mean(self.valid_rewards_list[-self.print_every:]), 3)}/{round(np.median(self.valid_rewards_list[-self.print_every:]), 3)}", end="\n")
-            self.env.render(self.env.present_state)
+        log_str = "\n"
 
-        elif self.mode == 'test':
-            print("="*30, end="\n")
-            print(f"[{self.test_epi}/{self.test_total_episodes}]", end="\n\t")
-            print(f"- Avg Clear: {round(np.mean(self.test_clear_list[-self.print_every:]), 3)}", end="\t")
-            print(f"- Cnt: {round(np.mean(self.test_cnt_list[-self.print_every:]), 3)}/{round(np.median(self.test_cnt_list[-self.print_every:]), 3)}", end="\t")
-            print(f"- Reward: {round(np.mean(self.test_rewards_list[-self.print_every:]), 3)}/{round(np.median(self.test_rewards_list[-self.print_every:]), 3)}", end="\n")
-            self.env.render(self.env.present_state)
+        if key == 'valid':
+            log_str += f"\t==valid[{self.cur_epi_dict[key]}/{self.valid_total_episodes}]" + " "
+        else: 
+            log_str += f"[{self.cur_epi_dict[key]}/{self.episodes}]" + " "
 
+        log_str += f"- Avg Clear: {round(np.mean(self.log_dict[key].clear_list[-self.lag:]), 3)}" + " "
+        log_str += f"- Cnt: {round(np.mean(self.log_dict[key].cnt_list[-self.lag:]), 3)}/{round(np.median(self.log_dict[key].cnt_list[-self.lag:]), 3)}" + " "
+        log_str += f"- Reward: {round(np.mean(self.log_dict[key].reward_list[-self.lag:]), 3)}/{round(np.median(self.log_dict[key].reward_list[-self.lag:]), 3)}" + " "
+        log_str += f"- RPC: {round(np.mean(self.log_dict[key].rpc_list[-self.lag:]), 3)}/{round(np.median(self.log_dict[key].rpc_list[-self.lag:]), 3)}" + " "
+
+        if key == 'train':
+            log_str += f"- Loss: {round(np.mean(self.log_dict[key].loss_list[-self.lag:]), 3)}/{round(np.median(self.log_dict[key].loss_list[-self.lag:]), 3)} - epsilon: {round(self.agent.epsilon, 5)} - lr: {round(self.agent.lr, 5)}"
         
-    def visualize_log(self):
-        file_path = f"{self.path}/{self.folder_name}_{self.mode}_log.pkl"
+        print(log_str)
+        
+        if key != 'train':
+            self.env.render(self.env.present_state)
 
-        if self.mode == 'train':
-            visualize_train_log(file_path)
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
+        
+
+    def visualize_log(self):
+        key = self.mode
+        df = self.log_dict[key].load_logs()
+        cur_epi = self.cur_epi_dict[key]
+        path = f"{self.path_dict['graph']}/{key}_{cur_epi}.png"
+
+        if key == 'train':
+            visualize_train_log(df = df, lag = self.lag, save_path = path)
 
         else:
-            visualize_test_log(file_path)
+            visualize_test_log(df = df, lag = self.lag, save_path = path)
 
         print("Visualizing complete")
 
@@ -362,7 +229,7 @@ class Trainer:
         for episode in range(self.episodes):
             self.mode = 'train'
             self.agent.model.to(self.device)
-            self.current_epi += 1
+            self.cur_epi_dict['train'] += 1
             # reset
             state, done, clear, total_reward, cnt, loss = self._game_reset()
 
@@ -390,7 +257,7 @@ class Trainer:
                     break
 
             # 평가지표
-            self._update_log([total_reward, clear, cnt, loss])
+            self.log_dict['train'].update_logs([total_reward, clear, cnt, loss, self.agent.lr])
 
             # 타깃 모델 업데이트
             if episode % self.update_target_every == 0:
@@ -404,33 +271,37 @@ class Trainer:
 
             if ((episode+1) % self.save_every == 0) or ((episode+1) == self.episodes):
                 self.save_model('latest')
-                self.save_log()
+                self.log_dict['train'].save_logs()
 
-            if (episode+1) % self.print_every == 0:
+            if ((episode+1) % self.print_every == 0) or ((episode+1) % self.valid_every == 0):
                 self._print_log()
 
             if (episode+1) % self.valid_every == 0:
                 self.visualize_log()
-
+                print("=== valid ===")
                 self.valid()
+                print("="*30)
 
         self.visualize_log()
-        print(f"Train completed. total avg win rate: {round(np.mean(self.clear_list), 3)}")
+        print(f"Train completed. total avg win rate: {round(np.mean(self.log_dict['train'].clear_list), 3)}")
 
 
     def valid(self):
         self.mode = 'valid'
+        log_str = ""
         print("Start valid - latest model")
         self.agent.model.to(self.device)
 
         for i in range(2):
+            self.cur_epi_dict['valid'] = 0
+            self.log_dict['valid'].reset()
             if i == 1:  # best
                 self.load_model('best')
                 self.agent.best_model.to(self.device)
 
             # latest
             for episode in range(self.valid_total_episodes):
-                self.valid_epi += 1
+                self.cur_epi_dict['valid'] += 1
                 # reset
                 state, done, clear, total_reward, cnt, _ = self._game_reset()
 
@@ -454,34 +325,46 @@ class Trainer:
                         break
 
                 # 평가지표
-                self._update_log([total_reward, clear, cnt])
+                self.log_dict['valid'].update_logs([total_reward, clear, cnt])
 
                 if (episode+1) % self.print_every == 0:
                     self._print_log()
 
             if i == 1:  # best
-                best_score = np.mean(self.valid_rewards_list)
-                print(f"Valid best model completed. Average win rate: {round(np.mean(self.valid_clear_list), 3)} / Average cnt: {round(np.mean(self.valid_cnt_list), 3)} / Average Reward: {round(best_score, 3)}")
+                best_score = np.mean(self.log_dict['valid'].reward_list)
+                log_str += f"\n[Best model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(best_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}" + "\n"
+                print(f"Valid best model completed. Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(best_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}")
                 
+                with open(self.path_dict['log_message'], "a") as f:
+                    f.write(log_str)
+                log_str = ""
+
             else:       # latest
-                latest_score = np.mean(self.valid_rewards_list)
-                print(f"Valid latest model completed. Average win rate: {round(np.mean(self.valid_clear_list), 3)} / Average cnt: {round(np.mean(self.valid_cnt_list), 3)} / Average Reward: {round(latest_score, 3)}")
-            
-            self.reset_valid_logs()
+                latest_score = np.mean(self.log_dict['valid'].reward_list)
+                log_str += f"\n[Latest model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(latest_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}" + "\n"
+                print(f"Valid latest model completed. Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(latest_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}")
+                
+                with open(self.path_dict['log_message'], "a") as f:
+                    f.write(log_str)
+                    log_str = ""
 
         if latest_score > best_score:
-            print(f"Update best model. latest model score: {latest_score} > best model score: {best_score}")
+            log_str += f"Update best model. latest model score: {latest_score} > best model score: {best_score}"
             self.save_model('best')
+
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
 
 
     def test(self, num_episodes):
         self.mode = 'test'
         self.agent.best_model.to(self.device)
         self.test_total_episodes = num_episodes
+        self.cur_epi_dict['test'] = 0
         print("Test start")
 
         for episode in range(self.test_total_episodes):
-            self.test_epi += 1
+            self.cur_epi_dict['test'] += 1
             # reset
             state, done, clear, total_reward, cnt, _ = self._game_reset()
 
@@ -501,11 +384,11 @@ class Trainer:
                     break
 
             # 평가지표
-            self._update_log([total_reward, clear, cnt])
+            self.log_dict['test'].update_logs([total_reward, clear, cnt])
 
             if (episode+1) % self.print_every == 0:
                 self._print_log()
 
-        self.save_log()
+        self.log_dict['test'].save_logs()
         self.visualize_log()
-        print(f"Test completed. Average win rate: {round(np.mean(self.test_clear_list), 3)} / Average cnt: {round(np.mean(self.test_cnt_list), 3)} / Average Reward: {round(np.mean(self.test_rewards_list), 3)}")
+        print(f"Test completed. Avg win rate: {round(np.mean(self.log_dict['test'].clear_list), 3)} / Avg Reward: {round(self.log_dict['test'].reward_list, 3)} / Avg cnt: {round(np.mean(self.log_dict['test'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['test'].rpc_list), 3)}")
