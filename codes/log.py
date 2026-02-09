@@ -32,6 +32,9 @@ class Log:
             self.loss_list = []
             self.lr_list = []
         
+        elif self.mode == 'valid':
+            self.latest_update = 0
+        
         print(f"Reset {self.mode} log lists.")
 
     
@@ -49,9 +52,6 @@ class Log:
         if self.mode == 'train':
             self.loss_list.append(loss)
             self.lr_list.append(lr)
-        
-        elif self.mode == 'valid':
-            self.latest_update = 0
 
     
     def save_logs(self):
