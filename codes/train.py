@@ -380,7 +380,8 @@ class Trainer:
                 log_str += f"\n[Best model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(best_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}" + "\n"
                 print(f"Valid best model completed. Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(best_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}")
                 
-                path = f"{self.path_dict['game_imgs']}/valid_best.png"
+                cur_epi = self.cur_epi_dict['train']
+                path = f"{self.path_dict['game_imgs']}/valid_best_{cur_epi}.png"
                 visualize_state(state = self.env.present_state, save_path = path)
                 log_str += f"\nSave game image at \'{path}\'"
 
@@ -394,7 +395,8 @@ class Trainer:
                 log_str += f"\n[Latest model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(latest_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}" + "\n"
                 print(f"Valid latest model completed. Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(latest_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}")
                 
-                path = f"{self.path_dict['game_imgs']}/valid_latest.png"
+                cur_epi = self.cur_epi_dict['train']
+                path = f"{self.path_dict['game_imgs']}/valid_latest_{cur_epi}.png"
                 visualize_state(state = self.env.present_state, save_path = path)
                 log_str += f"\nSave game image at \'{path}\'"
 

@@ -57,10 +57,10 @@ def visualize_train_log(df, lag, save_path=None):
         plt.savefig(save_path)
         print(f"Save image at {save_path}")
 
-    plt.show()
+    # plt.show()
     plt.close()
     
-    print("Complete printing image.")
+    # print("Complete printing image.")
 
 
 def visualize_test_log(df, lag, save_path=None):
@@ -85,8 +85,8 @@ def visualize_test_log(df, lag, save_path=None):
     axs[2, 1].plot(calculate_lag_mid(df['rpc'], lag), color = 'skyblue')
     axs[2, 1].set_title("Average / Median Reward per Cnt")
 
-    plt.show()
-    print("Complete printing image.")
+    # plt.show()
+    # print("Complete printing image.")
 
     if save_path:
         plt.savefig(save_path)
@@ -134,7 +134,7 @@ def visualize_state(state, save_path=None):
         plt.savefig(save_path)
         print(f"Save image at {save_path}")
 
-    plt.show()
+    # plt.show()
     plt.close()
     
-    print("Complete printing game image.")
+    # print("Complete printing game image.")
