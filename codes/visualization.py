@@ -7,66 +7,86 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 ########################################
-def visualize_train_log(file):
-    path = Path(file)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(file, 'rb') as f:
-        df = pickle.load(f)
+def calculate_lag_avg(data, lag):
+    result = data.rolling(window = lag, min_periods = 1).mean()
+    return result
 
-    fig, axs = plt.subplots(4, 2, figsize=(20, 15), squeeze=False)
-    axs[0, 0].plot(df['avg_rewards'], color = 'blue')
-    axs[0, 0].plot(df['mid_rewards'], color = 'pink')
+def calculate_lag_mid(data, lag):
+    result = data.rolling(window = lag, min_periods = 1).median()
+    return result
+
+def visualize_train_log(df, lag, save_path=None):
+
+    fig, axs = plt.subplots(3, 3, figsize=(20, 15), squeeze=False)
+    axs[0, 0].plot(calculate_lag_avg(df['reward'], lag), color = 'blue')
+    axs[0, 0].plot(calculate_lag_mid(df['reward'], lag), color = 'skyblue')
     axs[0, 0].axhline(y=0, color='black', linewidth=1)
     axs[0, 0].set_title("Average / Median Reward")
-    axs[0, 1].scatter(np.arange(len(df['rewards'])), df['rewards'], color = 'pink', alpha=0.7)
+    axs[0, 1].scatter(np.arange(len(df['reward'])), df['reward'], color = 'pink', alpha=0.7)
     axs[0, 1].axhline(y=0, color='black', linewidth=1)
     axs[0, 1].set_title("Reward")
 
-    axs[1, 0].plot(df['avg_cnt'], color = 'blue')
-    axs[1, 0].plot(df['mid_cnt'], color = 'pink')
+    axs[1, 0].plot(calculate_lag_avg(df['cnt'], lag), color = 'blue')
+    axs[1, 0].plot(calculate_lag_mid(df['cnt'], lag), color = 'skyblue')
     axs[1, 0].set_title("Average / Median Cnt")
     axs[1, 1].scatter(np.arange(len(df['cnt'])), df['cnt'], color = 'pink', alpha=0.7)
     axs[1, 1].set_title("Cnt")
 
-    axs[2, 0].plot(df['avg_loss'], color = 'blue')
-    axs[2, 0].plot(df['mid_loss'], color = 'pink')
-    axs[2, 0].set_title("Average / Median Loss")
-    axs[2, 1].plot(df['loss'], color = 'grey')
-    axs[2, 1].set_title('Loss')
+    axs[2, 0].plot(calculate_lag_avg(df['rpc'], lag), color = 'blue')
+    axs[2, 0].plot(calculate_lag_mid(df['rpc'], lag), color = 'skyblue')
+    axs[2, 0].set_title("Average / Median Reward per Cnt")
+    axs[2, 1].scatter(np.arange(len(df['rpc'])), df['rpc'], color = 'pink', alpha = 0.7)
+    axs[2, 1].set_title('Reward per Cnt')
 
-    axs[3, 0].plot(df['avg_clear'], color = 'blue')
-    axs[3, 0].axhline(y=0.5, color='black', linewidth=1)
-    axs[3, 0].set_title("Average Clear")
+    axs[0, 2].plot(calculate_lag_avg(df['clear'], lag), color = 'blue')
+    axs[0, 2].axhline(y=0.5, color='black', linewidth=1)
+    axs[0, 2].set_title("Average Clear")
 
-    axs[3, 1].plot(df['lr'], color = 'grey')
-    axs[3, 1].set_title("Learning Rate")
+    axs[1, 2].plot(calculate_lag_avg(df['loss'], lag), color = 'black')
+    axs[1, 2].plot(calculate_lag_mid(df['loss'], lag), color = 'grey')
+    axs[1, 2].set_title("Average / Median Loss")
+
+    axs[2, 2].plot(df['lr'], color = 'grey')
+    axs[2, 2].set_title("Learning Rate")
+
+
+    if save_path:
+        plt.savefig(save_path)
+        print(f"Save image at {save_path}")
 
     plt.show()
+    plt.close()
+    
+    print("Complete printing image.")
 
 
-def visualize_test_log(file):
-    path = Path(file)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(file, 'rb') as f:
-        df = pickle.load(f)
+
+def visualize_test_log(df, lag, save_path=None):
 
     fig, axs = plt.subplots(3, 2, figsize=(20, 10), squeeze=False)
-    axs[0, 0].plot(df['avg_rewards'], color = 'blue')
-    axs[0, 0].plot(df['mid_rewards'], color = 'pink')
+    axs[0, 0].plot(calculate_lag_avg(df['reward'], lag), color = 'blue')
+    axs[0, 0].plot(calculate_lag_mid(df['reward'], lag), color = 'pink')
     axs[0, 0].set_title("Average / Median Reward")
-    axs[0, 1].scatter(np.arange(len(df['rewards'])), df['rewards'], color = 'pink')
+    axs[0, 1].scatter(np.arange(len(df['reward'])), df['reward'], color = 'pink')
     axs[0, 1].axhline(y=0, color='black', linewidth=1)
     axs[0, 1].set_title("Reward")
 
-    axs[1, 0].plot(df['avg_cnt'], color = 'blue')
-    axs[1, 0].plot(df['mid_cnt'], color = 'pink')
+    axs[1, 0].plot(calculate_lag_avg(df['cnt'], lag), color = 'blue')
+    axs[1, 0].plot(calculate_lag_mid(df['cnt'], lag), color = 'pink')
     axs[1, 0].set_title("Average / Median Cnt")
     axs[1, 1].scatter(np.arange(len(df['cnt'])), df['cnt'], color = 'pink', alpha=0.7)
     axs[1, 1].set_title("Cnt")
 
-    axs[2, 0].plot(df['avg_clear'], color = 'blue')
+    axs[2, 0].plot(calculate_lag_avg(df['clear'], lag), color = 'blue')
     axs[2, 0].set_title("Average Clear")
-    axs[2, 1].scatter(df['clear'], color = 'pink', alpha=0.7)
-    axs[2, 1].set_title("Clear")
+    axs[2, 1].plot(calculate_lag_avg(df['rpc'], lag), color = 'blue')
+    axs[2, 1].plot(calculate_lag_mid(df['rpc'], lag), color = 'skyblue')
+    axs[2, 1].set_title("Average / Median Reward per Cnt")
 
     plt.show()
+    print("Complete printing image.")
+
+    if save_path:
+        plt.savefig(save_path)
+        plt.close()
+        print(f"Save image at {save_path}")
