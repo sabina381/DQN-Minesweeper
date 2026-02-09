@@ -49,6 +49,9 @@ class Log:
         if self.mode == 'train':
             self.loss_list.append(loss)
             self.lr_list.append(lr)
+        
+        elif self.mode == 'valid':
+            self.latest_update = 0
 
     
     def save_logs(self):

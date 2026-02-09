@@ -12,7 +12,8 @@ directions = [(-1, 0), (1, 0), (0, -1), (0, 1),
 #################################
 class Environment:
     def __init__(self, GRIDWORLD_SIZE:Tuple, NUM_MINE:int,
-                    REWARD_DICT:dict, DONE_DICT:dict, COLOR_DICT:dict):
+                    REWARD_DICT:dict, DONE_DICT:dict, COLOR_DICT:dict,
+                    FIRST_MINE:bool):
 
         self.gridworld_size = GRIDWORLD_SIZE
         self.nrow, self.ncol = self.gridworld_size
@@ -35,6 +36,7 @@ class Environment:
 
         # 지뢰 랜덤으로 배정
         self.mine_points = np.random.choice(self.points, self.num_mine, replace=False)
+        self.first_mine = FIRST_MINE
 
         # 정답 맵
         self.map_answer, self.mine_bool = self.make_answer_map()
@@ -169,10 +171,11 @@ class Environment:
         x, y = self._idx_to_coord(action_idx)
 
         # 첫번째 action인 경우
-        if self.move_cnt == 0 :
-            if action_idx in self.mine_points:
-                # 만약 처음 선택한 좌표에 지뢰가 있는 경우 옮기기
-                self.move_first_mine(action_idx)
+        if not self.first_mine:
+            if (self.move_cnt == 0) :
+                if action_idx in self.mine_points:
+                    # 만약 처음 선택한 좌표에 지뢰가 있는 경우 옮기기
+                    self.move_first_mine(action_idx)
 
         # action에 따라 계산된 state
         next_state = self.bfs_minesweeper(action_idx)

@@ -13,11 +13,11 @@ from log import Log
 class Trainer:
     def __init__(self, 
                 # Trainer
-                FOLDER_NAME:str, PATH:str, EPISODES:int, VALID_EPISODES:int, LAG:int,
+                FOLDER_NAME:str, PATH:str, EPISODES:int, VALID_EPISODES:int, LAG:int, MODEL_CRITERIA:int,
                 UPDATE_TARGET_EVERY:int, PRINT_EVERY:int, SAVE_EVERY:int, VALID_EVERY:int,
                 TRAIN_START:int, LEARN_MIN:float, LEARN_DECAY:float, LEARN_EPOCH:float,
                 # Environment
-                GRIDWORLD_SIZE:Tuple, NUM_MINE:int, REWARD_DICT:dict, DONE_DICT:dict, COLOR_DICT:dict,
+                GRIDWORLD_SIZE:Tuple, NUM_MINE:int, REWARD_DICT:dict, DONE_DICT:dict, COLOR_DICT:dict, FIRST_MINE:bool,
                 # DQN_Agent
                 STATE_TYPE:str, EPSILON:float, EPSILON_DECAY:float, EPSILON_MIN:float, BATCH_SIZE:int, 
                 GAMMA:float, MEM_SIZE:int, LEARN_MAX:float, CONV_UNITS:int, DEVICE, LOSS_FUNC, OPTIMIZER
@@ -27,7 +27,8 @@ class Trainer:
                             NUM_MINE= NUM_MINE, 
                             REWARD_DICT= REWARD_DICT, 
                             DONE_DICT= DONE_DICT, 
-                            COLOR_DICT= COLOR_DICT)
+                            COLOR_DICT= COLOR_DICT,
+                            FIRST_MINE= FIRST_MINE)
 
         self.agent = DQN_Agent(STATE_SIZE= GRIDWORLD_SIZE, 
                             STATE_TYPE= STATE_TYPE, 
@@ -66,7 +67,7 @@ class Trainer:
         self.save_every = SAVE_EVERY
         self.valid_every = VALID_EVERY
         self.lag = LAG
-
+        self.model_criteria = MODEL_CRITERIA
         self.mode = "train"
         
         self.train_log = Log(MODE= 'train', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
@@ -84,6 +85,7 @@ class Trainer:
                         'log_message': Path(f"{self.path}/{self.folder_name}_training_log.txt"),
                         'logs': Path(f"{self.path}/logs"),
                         'graph': Path(f"{self.path}/graphs"),
+                        'game_imgs': Path(f"{self.path}/game_imgs"),
                         'memory': Path(f"{self.path}/memory.pkl")})
 
         self.path_dict['log_message'].parent.mkdir(parents=True, exist_ok=True)
@@ -91,28 +93,36 @@ class Trainer:
         self.path_dict['model'].mkdir(parents=True, exist_ok=True)
         self.path_dict['logs'].mkdir(parents=True, exist_ok=True)
         self.path_dict['graph'].mkdir(parents=True, exist_ok=True)
+        self.path_dict['game_imgs'].mkdir(parents=True, exist_ok=True)
 
         if not Path(self.path_dict['log_message']).exists():
             with open(self.path_dict['log_message'], "w") as f:
                 f.write(f"Training Log for {self.folder_name}\n")
                 f.write("="*50 + "\n")
+            
+        log_str = "< path dict >\n"
 
-        print(self.path_dict)
+        for item in self.path_dict.items():
+            log_str += str(item) + "\n"
+
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
 
 
     def load_model(self, model_name):
         file_path = f"{self.path_dict['model']}/{model_name}.pkl"
         path = Path(file_path)
         path.parent.mkdir(parents=True, exist_ok=True)
+        log_str = ""
 
         if not path.exists():
             if model_name == 'best':
                 with open(path, 'wb') as f:
                     pickle.dump(self.agent.model.state_dict(), f)
-                    print("Create best model")
+                    log_str += "\nCreate best model"
                     
             else:
-                print("Create new model")
+                log_str += "\nCreate new model"
                 return
 
         with open(path, 'rb') as f:
@@ -129,7 +139,10 @@ class Trainer:
             self.agent.model.to(self.device)
             self.agent.target_model.to(self.device)
             
-        print(f"Model loaded from \'{file_path}\'")
+        log_str += f"\nModel loaded from \'{file_path}\'"
+        print(log_str)
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
 
 
     def save_model(self, model_name):
@@ -142,7 +155,33 @@ class Trainer:
         with open(path, 'wb') as f:
             pickle.dump(self.agent.model.state_dict(), f)
         
-        print(f"Model saved to \'{file_path}\'")
+        log_str = f"\nModel saved to \'{file_path}\'"
+        # print(log_str)
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
+
+    
+    def change_model(self):
+        file_path = f"{self.path_dict['model']}/best.pkl"
+        path = Path(file_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(path, 'rb') as f:
+            model_param = pickle.load(f)
+        
+        self.agent.best_model.load_state_dict(model_param)
+        self.agent.best_model.to(self.device)
+
+        self.agent.model.load_state_dict(model_param)
+        self.agent.model.to(self.device)
+
+        self.agent.target_model.load_state_dict(model_param)
+        self.agent.target_model.to(self.device)
+
+        log_str = "Agent model changed to best model.\n"
+        # print(log_str) 
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
 
     
     def _save_memory(self):
@@ -190,19 +229,15 @@ class Trainer:
         else: 
             log_str += f"[{self.cur_epi_dict[key]}/{self.episodes}]" + " "
 
-        log_str += f"- Avg Clear: {round(np.mean(self.log_dict[key].clear_list[-self.lag:]), 3)}" + " "
-        log_str += f"- Cnt: {round(np.mean(self.log_dict[key].cnt_list[-self.lag:]), 3)}/{round(np.median(self.log_dict[key].cnt_list[-self.lag:]), 3)}" + " "
-        log_str += f"- Reward: {round(np.mean(self.log_dict[key].reward_list[-self.lag:]), 3)}/{round(np.median(self.log_dict[key].reward_list[-self.lag:]), 3)}" + " "
-        log_str += f"- RPC: {round(np.mean(self.log_dict[key].rpc_list[-self.lag:]), 3)}/{round(np.median(self.log_dict[key].rpc_list[-self.lag:]), 3)}" + " "
+        log_str += f"- Avg Clear: {round(np.mean(self.log_dict[key].clear_list[-self.print_every:]), 3)}" + " "
+        log_str += f"- Cnt: {round(np.mean(self.log_dict[key].cnt_list[-self.print_every:]), 3)}/{round(np.median(self.log_dict[key].cnt_list[-self.print_every:]), 3)}" + " "
+        log_str += f"- Reward: {round(np.mean(self.log_dict[key].reward_list[-self.print_every:]), 3)}/{round(np.median(self.log_dict[key].reward_list[-self.print_every:]), 3)}" + " "
+        log_str += f"- RPC: {round(np.mean(self.log_dict[key].rpc_list[-self.print_every:]), 3)}/{round(np.median(self.log_dict[key].rpc_list[-self.print_every:]), 3)}" + " "
 
         if key == 'train':
-            log_str += f"- Loss: {round(np.mean(self.log_dict[key].loss_list[-self.lag:]), 3)}/{round(np.median(self.log_dict[key].loss_list[-self.lag:]), 3)} - epsilon: {round(self.agent.epsilon, 5)} - lr: {round(self.agent.lr, 5)}"
+            log_str += f"- Loss: {round(np.mean(self.log_dict[key].loss_list[-self.print_every:]), 3)}/{round(np.median(self.log_dict[key].loss_list[-self.print_every:]), 3)} - epsilon: {round(self.agent.epsilon, 5)} - lr: {round(self.agent.lr, 5)}"
         
-        print(log_str)
-        
-        if key != 'train':
-            self.env.render(self.env.present_state)
-
+        # print(log_str)
         with open(self.path_dict['log_message'], "a") as f:
             f.write(log_str)
         
@@ -219,7 +254,12 @@ class Trainer:
         else:
             visualize_test_log(df = df, lag = self.lag, save_path = path)
 
-        print("Visualizing complete")
+        log_str = "Visualizing log complete.\n"
+        # print(log_str)
+
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
+        
 
 
     def train(self):
@@ -277,13 +317,18 @@ class Trainer:
                 self._print_log()
 
             if (episode+1) % self.valid_every == 0:
+                self.save_model('latest')
+                self.log_dict['train'].save_logs()
                 self.visualize_log()
                 print("=== valid ===")
                 self.valid()
                 print("="*30)
 
         self.visualize_log()
-        print(f"Train completed. total avg win rate: {round(np.mean(self.log_dict['train'].clear_list), 3)}")
+        log_str = f"Train completed. total avg win rate: {round(np.mean(self.log_dict['train'].clear_list), 3)}"
+        print(log_str)
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
 
 
     def valid(self):
@@ -335,8 +380,13 @@ class Trainer:
                 log_str += f"\n[Best model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(best_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}" + "\n"
                 print(f"Valid best model completed. Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(best_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}")
                 
+                path = f"{self.path_dict['game_imgs']}/valid_best.png"
+                visualize_state(state = self.env.present_state, save_path = path)
+                log_str += f"\nSave game image at \'{path}\'"
+
                 with open(self.path_dict['log_message'], "a") as f:
                     f.write(log_str)
+
                 log_str = ""
 
             else:       # latest
@@ -344,16 +394,31 @@ class Trainer:
                 log_str += f"\n[Latest model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(latest_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}" + "\n"
                 print(f"Valid latest model completed. Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(latest_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}")
                 
+                path = f"{self.path_dict['game_imgs']}/valid_latest.png"
+                visualize_state(state = self.env.present_state, save_path = path)
+                log_str += f"\nSave game image at \'{path}\'"
+
                 with open(self.path_dict['log_message'], "a") as f:
                     f.write(log_str)
-                    log_str = ""
+
+                log_str = ""
 
         if latest_score > best_score:
-            log_str += f"Update best model. latest model score: {latest_score} > best model score: {best_score}"
+            log_str += f"Update best model. latest model score: {latest_score} > best model score: {best_score}\n"
             self.save_model('best')
+            self.log_dict['valid'].latest_update = 0
+        
+        else:
+            self.log_dict['valid'].latest_update += 1
+
+        if self.log_dict['valid'].latest_update == self.model_criteria:
+            self.change_model()
+            self.log_dict['valid'].latest_update = 0
 
         with open(self.path_dict['log_message'], "a") as f:
             f.write(log_str)
+
+        self.log_dict['valid'].save_logs()
 
 
     def test(self, num_episodes):
