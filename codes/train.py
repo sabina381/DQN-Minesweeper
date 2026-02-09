@@ -178,7 +178,7 @@ class Trainer:
         self.agent.target_model.load_state_dict(model_param)
         self.agent.target_model.to(self.device)
 
-        log_str = "Agent model changed to best model.\n"
+        log_str = "\nAgent model changed to best model."
         # print(log_str) 
         with open(self.path_dict['log_message'], "a") as f:
             f.write(log_str)
@@ -254,7 +254,7 @@ class Trainer:
         else:
             visualize_test_log(df = df, lag = self.lag, save_path = path)
 
-        log_str = "Visualizing log complete.\n"
+        log_str = "\nComplete visualizing train log."
         # print(log_str)
 
         with open(self.path_dict['log_message'], "a") as f:
@@ -383,7 +383,7 @@ class Trainer:
                 cur_epi = self.cur_epi_dict['train']
                 path = f"{self.path_dict['game_imgs']}/valid_best_{cur_epi}.png"
                 visualize_state(state = self.env.present_state, save_path = path)
-                log_str += f"\nSave game image at \'{path}\'"
+                log_str += f"Save game image at \'{path}\'"
 
                 with open(self.path_dict['log_message'], "a") as f:
                     f.write(log_str)
@@ -398,7 +398,7 @@ class Trainer:
                 cur_epi = self.cur_epi_dict['train']
                 path = f"{self.path_dict['game_imgs']}/valid_latest_{cur_epi}.png"
                 visualize_state(state = self.env.present_state, save_path = path)
-                log_str += f"\nSave game image at \'{path}\'"
+                log_str += f"Save game image at \'{path}\'"
 
                 with open(self.path_dict['log_message'], "a") as f:
                     f.write(log_str)
@@ -406,7 +406,7 @@ class Trainer:
                 log_str = ""
 
         if latest_score > best_score:
-            log_str += f"Update best model. latest model score: {latest_score} > best model score: {best_score}\n"
+            log_str += f"\n>>>> Update best model. latest model score: {latest_score} > best model score: {best_score}\n"
             self.save_model('best')
             self.log_dict['valid'].latest_update = 0
         
