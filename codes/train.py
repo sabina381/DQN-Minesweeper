@@ -304,10 +304,10 @@ class Trainer:
                 self.agent.update_target_model()
 
             # lr 조절
-            if self.lr_epoch > 0:
-                if (episode+1) % self.lr_epoch == 0:
-                    lr = self.agent.optimizer.param_groups[0]['lr'] * self.lr_decay
-                    self.agent.optimizer.param_groups[0]['lr'] = max(lr, self.lr_min)
+            if (episode+1) % self.lr_epoch == 0:
+                lr = self.agent.optimizer.param_groups[0]['lr'] * self.lr_decay
+                self.agent.optimizer.param_groups[0]['lr'] = max(lr, self.lr_min)
+                self.agent.lr = lr
 
             if ((episode+1) % self.save_every == 0) or ((episode+1) == self.episodes):
                 self.save_model('latest')
@@ -339,7 +339,7 @@ class Trainer:
 
         for i in range(2):
             self.cur_epi_dict['valid'] = 0
-            self.log_dict['valid'].reset()
+            self.log_dict['valid'].reset(new=False)
             if i == 1:  # best
                 self.load_model('best')
                 self.agent.best_model.to(self.device)
@@ -375,9 +375,11 @@ class Trainer:
                 if (episode+1) % self.print_every == 0:
                     self._print_log()
 
+            self.log_dict['valid'].save_logs()
+
             if i == 1:  # best
-                best_score = np.mean(self.log_dict['valid'].reward_list)
-                log_str += f"\n[Best model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(best_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}" + "\n"
+                best_score = np.mean(self.log_dict['valid'].rpc_list)
+                log_str += f"\n[Best model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(np.mean(self.log_dict['valid'].reward_list), 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(best_score, 3)}" + "\n"
                 print(f"Valid best model completed. Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(best_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}")
                 
                 cur_epi = self.cur_epi_dict['train']
@@ -391,8 +393,8 @@ class Trainer:
                 log_str = ""
 
             else:       # latest
-                latest_score = np.mean(self.log_dict['valid'].reward_list)
-                log_str += f"\n[Latest model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(latest_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}" + "\n"
+                latest_score = np.mean(self.log_dict['valid'].rpc_list)
+                log_str += f"\n[Latest model valid result] Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(np.mean(self.log_dict['valid'].reward_list), 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(latest_score, 3)}" + "\n"
                 print(f"Valid latest model completed. Avg win rate: {round(np.mean(self.log_dict['valid'].clear_list), 3)} / Avg Reward: {round(latest_score, 3)} / Avg cnt: {round(np.mean(self.log_dict['valid'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['valid'].rpc_list), 3)}")
                 
                 cur_epi = self.cur_epi_dict['train']
@@ -413,14 +415,13 @@ class Trainer:
         else:
             self.log_dict['valid'].latest_update += 1
 
-        if self.log_dict['valid'].latest_update == self.model_criteria:
+        if self.log_dict['valid'].latest_update >= self.model_criteria:
             self.change_model()
+            log_str += "\t!!!! Model changed !!!!\n"
             self.log_dict['valid'].latest_update = 0
 
         with open(self.path_dict['log_message'], "a") as f:
             f.write(log_str)
-
-        self.log_dict['valid'].save_logs()
 
 
     def test(self, num_episodes):

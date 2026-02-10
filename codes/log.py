@@ -22,7 +22,7 @@ class Log:
         self.reset()
 
     
-    def reset(self):
+    def reset(self, new=True):
         self.reward_list = []
         self.clear_list = []
         self.cnt_list = []
@@ -32,7 +32,7 @@ class Log:
             self.loss_list = []
             self.lr_list = []
         
-        elif self.mode == 'valid':
+        elif (self.mode == 'valid') and new:
             self.latest_update = 0
         
         print(f"Reset {self.mode} log lists.")
