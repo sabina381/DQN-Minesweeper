@@ -4,38 +4,53 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
+############# Train
+PRINT_EVERY = 100
+SAVE_EVERY = 500
+VALID_EVERY = 2500
+
+LAG = 1000
+MODEL_CRITERIA = 3
+
+EPISODES = 150000
+VALID_EPISODES = 1000
+
+PATH = "/Users/seungyeonlee/Documents/GitHub/DQN-Minesweeper"
+FOLDER_NAME = "dqn_260209"
+
 ############# Environment
 GRIDWORLD_SIZE = (9, 9)
 NUM_MINE = 9
+FIRST_MINE = False
 
 REWARD_DICT = {'mine':-1, 'empty':1, 'overlapped':-1, 'guess':0.3, 'clear':1}
 DONE_DICT = {'mine':True, 'empty':False, 'overlapped':False, 'guess':False, 'clear':True}
 
 COLOR_DICT = {'0':'black', '1':"skyblue", '2':'lightgreen', '3':'red', '4':'violet', '5':'brown',
-                '6':'turquoise', '7':'grey', '8':'black', 'M':'white', '.':'black'}
+            '6':'turquoise', '7':'grey', '8':'black', 'M':'white', '.':'white'}
 
 STATE_TYPE = "one-hot" # "original", "one-hot", "normalization"
 
 ############# Hyper parameters
 MEM_SIZE = 50000
-MEM_SIZE_MIN = 1000
+TRAIN_START = 1000
 
-REWARD_MEM_SIZE = 20000
-REWARD_MEM_SIZE_MIN = 500
+# REWARD_MEM_SIZE = 20000
+# REWARD_MEM_SIZE_MIN = 500
 
 BATCH_SIZE = 64
 BATCH_RATE = 0
 
 LEARN_MAX = 0.001 # 스케줄러 (learning rate 감소 모듈) 사용
 LEARN_MIN = 0.0001
-LEARN_DECAY = 0.5
-LEARN_EPOCH = 50000
+LEARN_DECAY = 0.6
+LEARN_EPOCH = 30000
 
 GAMMA = 0.1 #gamma
 
-EPSILON = 0
-EPSILON_DECAY = 0.99995
-EPSILON_MIN = 0
+EPSILON = 0.99999
+EPSILON_DECAY = 0.99997
+EPSILON_MIN = 0.01
 
 ############# DQN settings
 CONV_UNITS = 64
@@ -54,25 +69,22 @@ elif torch.backends.cuda.is_built():
 else:
     DEVICE = torch.device("cpu")
 
-############# Train
-PRINT_EVERY = 100
-SAVE_EVERY = 100
-
-EPISODES = 10000
-
 #######################################
 CONFIG = EasyDict({
+    'FOLDER_NAME' : FOLDER_NAME,
+    'PATH' : PATH,
     'DEVICE' : DEVICE,
     'STATE_TYPE' : STATE_TYPE,
     
     'GRIDWORLD_SIZE' : GRIDWORLD_SIZE,
     'NUM_MINE' : NUM_MINE,
+    'FIRST_MINE' : FIRST_MINE,
     'REWARD_DICT' : REWARD_DICT,
     'DONE_DICT' : DONE_DICT,
     'COLOR_DICT' : COLOR_DICT,
 
     'MEM_SIZE' : MEM_SIZE,
-    'MEM_SIZE_MIN' : MEM_SIZE_MIN,
+    'TRAIN_START' : TRAIN_START,
     'BATCH_SIZE' : BATCH_SIZE,
     'CONV_UNITS' : CONV_UNITS,
 
@@ -92,5 +104,9 @@ CONFIG = EasyDict({
 
     'PRINT_EVERY' : PRINT_EVERY,
     'SAVE_EVERY' : SAVE_EVERY,
-    'EPISODES' : EPISODES
+    'VALID_EVERY' : VALID_EVERY,
+    'EPISODES' : EPISODES,
+    'VALID_EPISODES': VALID_EPISODES,
+    'LAG' : LAG,
+    'MODEL_CRITERIA': MODEL_CRITERIA
 })
