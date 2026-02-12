@@ -64,7 +64,7 @@ if torch.backends.mps.is_built():
     DEVICE = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 elif torch.backends.cuda.is_built():
-    DEVICE = torch.device("mps" if torch.cuda.is_available() else "cpu")
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 else:
     DEVICE = torch.device("cpu")

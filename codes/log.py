@@ -1,18 +1,13 @@
 import pickle
 from pathlib import Path
-import numpy as np
 import pandas as pd
-from typing import Tuple
-
-from environment import Environment
-from dqn_agent import DQN_Agent
 
 from visualization import *
 #################################
 
 class Log:
     def __init__(self, MODE, FOLDER_NAME:str, PATH:str):
-        self.mode = MODE
+        self.mode = MODE    # train, valid, test
         self.folder_name = FOLDER_NAME
 
         self.file_path = f"{PATH}/{self.mode}.pkl"
@@ -23,15 +18,21 @@ class Log:
 
     
     def reset(self, new=True):
+        '''
+        mode에 따라 학습 지표 리스트 초기화
+        '''
+        # 공통 리스트
         self.reward_list = []
         self.clear_list = []
         self.cnt_list = []
         self.rpc_list = []
 
+        # train log는 loss, lr 추가
         if self.mode == 'train':
             self.loss_list = []
             self.lr_list = []
         
+        # valid 시 모델 평가 시 학습이 안된다고 판단하기 위한 지표 
         elif (self.mode == 'valid') and new:
             self.latest_update = 0
         
@@ -39,6 +40,9 @@ class Log:
 
     
     def update_logs(self, logs:list):
+        '''
+        입력받은 logs에 따라 학습 지표 리스트 업데이트
+        '''
         if self.mode == 'train':
             total_reward, clear, cnt, loss, lr = logs
         else:
@@ -55,6 +59,9 @@ class Log:
 
     
     def save_logs(self):
+        '''
+        학습 지표 리스트를 하나의 df로 만들어 지정된 경로에 저장
+        '''
         if self.mode == 'train':
             new_df = pd.DataFrame({'reward': self.reward_list,
                                     'clear': self.clear_list,
@@ -80,6 +87,9 @@ class Log:
 
     
     def load_logs(self):
+        '''
+        지정된 경로에서 학습지표 df 불러오기
+        '''
         with open(self.path, 'rb') as f:
             df = pickle.load(f)
 

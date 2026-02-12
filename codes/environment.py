@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 from typing import Tuple
 from collections import deque
-import random
 
 #################################
+# 주변 좌표 리스트 생성 시 사용하는 방향 좌표. (해당 칸의 주변 8칸)
 directions = [(-1, 0), (1, 0), (0, -1), (0, 1),
             (-1, -1), (-1, 1), (1, -1), (1, 1)]
 
@@ -36,26 +36,27 @@ class Environment:
 
         # 지뢰 랜덤으로 배정
         self.mine_points = np.random.choice(self.points, self.num_mine, replace=False)
-        self.first_mine = FIRST_MINE
-
         # 정답 맵
         self.map_answer, self.mine_bool = self.make_answer_map()
-
         # state 맵
         self.present_state = np.full((self.nrow, self.ncol), -1) # BFS로 탐색하지 않은 부분을 -1로 초기화
 
-        # 행동 횟수 카운트
-        self.move_cnt = 0
-
-        # reder에 사용하는 color map
-        self.color_dict = COLOR_DICT
+        self.move_cnt = 0   # 행동 횟수 카운트
+        self.first_mine = FIRST_MINE    # 첫 번째 선택이 지뢰인 것을 허용하는지 여부
+        self.color_dict = COLOR_DICT    # state render에 사용하는 color map
 
     
     def _coord_to_idx(self, x:int, y:int):
+        '''
+        (x, y) 좌표 -> idx로 바꾸는 함수
+        '''
         return x * self.ncol + y
 
 
     def _idx_to_coord(self, idx):
+        '''
+        idx -> (x, y) 좌표로 바꾸는 함수
+        '''
         x, y = divmod(idx, self.ncol)
         return (x, y)
 
@@ -70,7 +71,7 @@ class Environment:
 
         for dx, dy in directions:
             nx, ny = x + dx, y + dy
-            if (0 <= nx < self.nrow) and (0 <= ny < self.ncol):
+            if (0 <= nx < self.nrow) and (0 <= ny < self.ncol): # 맵 가장자리 체크
                 neighbor_coords.append((nx, ny))
         
         return neighbor_coords
@@ -126,7 +127,7 @@ class Environment:
         input : clicked_idx(클릭한 좌표)
         output : 해당 좌표가 guess인지 (bool)
         클릭한 좌표가 guess인지 확인하는 함수
-        클릭한 좌표 주변 8칸이 모두 열리지 않은 경우 guess
+        논리: 클릭한 좌표 주변 8칸이 모두 열리지 않은 경우 guess
         '''
         if self.move_cnt == 0:
             return False
@@ -153,8 +154,8 @@ class Environment:
         empty_points = np.setdiff1d(self.points, self.mine_points)
         new_mine = np.random.choice(empty_points, 1)
 
-        self.mine_points = np.delete(self.mine_points, np.where(self.mine_points == action_idx))
-        self.mine_points = np.append(self.mine_points, new_mine[0])
+        self.mine_points = np.delete(self.mine_points, np.where(self.mine_points == action_idx))    # 기존 지뢰 1개 삭제
+        self.mine_points = np.append(self.mine_points, new_mine[0]) # 새로운 지뢰 1개 추가
 
         # 정답 맵
         self.map_answer, self.mine_bool = self.make_answer_map()
@@ -171,7 +172,7 @@ class Environment:
         x, y = self._idx_to_coord(action_idx)
 
         # 첫번째 action인 경우
-        if not self.first_mine:
+        if not self.first_mine: # 첫 번째 선택이 지뢰인 것을 허용하지 않을 때
             if (self.move_cnt == 0) :
                 if action_idx in self.mine_points:
                     # 만약 처음 선택한 좌표에 지뢰가 있는 경우 옮기기
@@ -183,13 +184,13 @@ class Environment:
         # ======
         # reward
         if action_idx in self.mine_points:
-            # 지뢰
+            # 지뢰 밟음 (게임 종료)
             reward = self.reward_dict['mine']
             done = self.done_dict['mine']
             clear = False
 
         elif np.sum(next_state == -1) == self.num_mine:
-            # 클리어
+            # 게임 클리어 (게임 종료)
             reward = self.reward_dict['clear']
             done = self.done_dict['clear']
             clear = True
@@ -275,30 +276,3 @@ class Environment:
 
     def render_color(self, var):
         return f"color: {self.color_dict[var]}"
-
-
-    # def samples(self, num:int):
-    #     sample_mine_points = []
-
-    #     for i in range(num):
-    #         self.mine_points = np.random.choice(self.points, self.num_mine, replace=False)
-    #         sample_mine_points.append(self.mine_points)
-
-    #     return sample_mine_points
-
-    # def train_reset(self, samples:np.array):
-    #     self.mine_points = random.sample(samples, 1)[0]
-    #     # 정답 맵
-    #     self.map_answer, self.mine_bool = self.make_answer_map()
-    #     # state 맵
-    #     self.present_state = np.full((self.nrow, self.ncol), -1) # BFS로 탐색하지 않은 부분을 -1로 초기화
-
-    #     self.move_cnt = 0
-
-
-    # def check_18_up(self, state):
-    #     if np.sum(state != -1) >= 18:
-    #         return True
-    #     else:
-    #         return False
-

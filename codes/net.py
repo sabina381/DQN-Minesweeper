@@ -68,7 +68,7 @@ class NetOneHot(nn.Module):
 
         return x
 
-
+# debug
 def main():
     t = torch.randint(-2, 9, (3, 1, 9, 9)).long()
     scaled_t = one_hot_scaling(t)
