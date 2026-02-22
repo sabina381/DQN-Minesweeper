@@ -182,8 +182,6 @@ class DQN_Agent:
         '''
         에이전트를 완전히 초기화한다.
         '''
-        self.action_space = torch.tensor(np.arange(self.nrow * self.ncol))
-        self.num_actions = len(self.action_space)
         self.q_values = torch.zeros(self.action_space.shape, dtype=torch.float32)
 
         self.epsilon = self.epsilon_init
