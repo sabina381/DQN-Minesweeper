@@ -75,16 +75,14 @@ class Trainer:
         self.mode = "train"
         
         # 학습 지표 관리 객체 생성
-        self.train_log = Log(MODE= 'train', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
-        self.valid_log = Log(MODE= 'valid', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
-        self.test_log = Log(MODE= 'test', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
-
-        self.log_dict = dict({'train': self.train_log, 
-                            'valid': self.valid_log, 
-                            'test': self.test_log})
+        self.log_dict = dict({'train': Log(MODE= 'train', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs']), 
+                            'valid': Log(MODE= 'valid', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs']), 
+                            'test': Log(MODE= 'test', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
+                            })
 
         # 현재 에피소드 횟수 추적
         self.cur_epi_dict = dict({'train': 0, 'valid': 0, 'test': 0})
+
 
     def create_path(self):
         '''
@@ -211,7 +209,7 @@ class Trainer:
     
     def _save_memory(self):
         '''
-        현재 리플레이 메모리를 pkl 형식으로 저장 (dump 방식)
+        현재 리플레이 메모리를 pkl 형식으로 저장
         '''
         with open(self.path_dict['memory'], 'wb') as f:
             pickle.dump(self.agent.memory, f)
@@ -243,8 +241,6 @@ class Trainer:
         total_reward = 0
         cnt = 0
         loss = 0
-
-        self.agent.action_space = self.env.points.copy()
 
         return state, done, clear, total_reward, cnt, loss
 
@@ -491,13 +487,17 @@ class Trainer:
     def test(self, num_episodes):
         '''
         test를 실행하는 함수
-        ! 수정 필요 !
+        best model로 test한다.
         '''
-        self.mode = 'test'
-        self.agent.best_model.to(self.device)
         self.test_total_episodes = num_episodes
+        self.mode = 'test'
         self.cur_epi_dict['test'] = 0
-        print("Test start")
+        self.log_dict['test'].reset()
+        log_str = ""
+        print("Start test")
+
+        self.load_model('best')
+        self.agent.best_model.to(self.device)
 
         for episode in range(self.test_total_episodes):
             self.cur_epi_dict['test'] += 1
@@ -507,7 +507,6 @@ class Trainer:
             # 게임 종료까지 반복
             while not done:
                 cnt+=1
-
                 action = self.agent.get_action_best(state)
                 state, reward, done, clear = self.env.step(action)
                 total_reward += reward
@@ -526,5 +525,12 @@ class Trainer:
                 self._print_log()
 
         self.log_dict['test'].save_logs()
-        self.visualize_log()
-        print(f"Test completed. Avg win rate: {round(np.mean(self.log_dict['test'].clear_list), 3)} / Avg Reward: {round(self.log_dict['test'].reward_list, 3)} / Avg cnt: {round(np.mean(self.log_dict['test'].cnt_list), 3)} / Avg RPC: {round(np.mean(self.log_dict['test'].rpc_list), 3)}")
+        log_str += f"======== Test result ======== \n\t\
+                    Total episode: {self.test_total_episodes}\n\t\
+                    Average win rate: {round(np.mean(self.log_dict['test'].clear_list), 3)}\n\t\
+                    Average reward: {round(np.mean(self.log_dict['test'].reward_list), 3)}\n\t\
+                    Average count: {round(np.mean(self.log_dict['test'].cnt_list), 3)}\n\t\
+                    Average RPC: {round(np.mean(self.log_dict['test'].rpc_list), 3)}\n"
+
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
