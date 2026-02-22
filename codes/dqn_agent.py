@@ -56,13 +56,15 @@ class DQN_Agent:
         # best model: 학습 중 valid에 따라 선정된 최고 성능 모델. valid마다 최고 성능 모델이 갱신되면 업데이트됨.
         # state_type에 따라 신경망 결정
         if self.state_type == "one-hot":    # one-hot 방식
-            self.model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
-            self.target_model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
-            self.best_model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
+            self.channels = 11
+            
         else:   # original, normalization 방식
-            self.model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
-            self.target_model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
-            self.best_model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
+            self.channels = 1
+
+        self.model = Net(self.state_size, self.num_actions, self.conv_units, channels=self.channels).to(self.device)
+        self.target_model = Net(self.state_size, self.num_actions, self.conv_units, channels=self.channels).to(self.device)
+        self.best_model = Net(self.state_size, self.num_actions, self.conv_units, channels=self.channels).to(self.device)
+        
         self.update_target_model()
 
         # loss function, optimizer 설정
@@ -189,20 +191,18 @@ class DQN_Agent:
 
         self.memory = deque(maxlen = self.mem_size)
 
-        if self.state_type == "one-hot":
-            self.model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
-            self.target_model = NetOneHot(self.state_size, self.num_actions, self.conv_units).to(self.device)
-        else:
-            self.model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
-            self.target_model = Net(self.state_size, self.num_actions, self.conv_units).to(self.device)
+        self.model = Net(self.state_size, self.num_actions, self.conv_units, self.channels).to(self.device)
+        self.target_model = Net(self.state_size, self.num_actions, self.conv_units, self.channels).to(self.device)
+        self.best_model = Net(self.state_size, self.num_actions, self.conv_units, self.channels).to(self.device)
+        
         self.update_target_model()
 
         self.optimizer = self.optimizer_type(self.model.parameters(), lr=self.lr_init)
 
 
-    def get_action_latest(self, state):
+    def get_action_test(self, state, model):
         '''
-        현재 모델로 action을 선택한다. (No 엡실론 탐색)
+        입력받은 모델로 action을 선택한다. (No 엡실론 탐색)
         valid 시에 사용하는 함수이다.
         '''
         state = torch.tensor(state).to(self.device)
@@ -213,29 +213,10 @@ class DQN_Agent:
         state = self.change_state_type(state)
 
         with torch.no_grad():
-            q_values = self.model(state).flatten().to("cpu")
-            max_idx = torch.argmax(q_values)
-            act = max_idx.item()
-
-            self.q_values = q_values
-
-        return act
-
-    
-    def get_action_best(self, state):
-        '''
-        이제껏 학습한 모델 중 best 모델로 action을 선택한다. (No 엡실론 탐색)
-        valid 시에 사용하는 함수이다.
-        '''
-        state = torch.tensor(state).to(self.device)
-        state = state.unsqueeze(0).to(dtype = torch.float32)
-        state = state.unsqueeze(0)  # torch.Size([1, 1, 9, 9])
-
-        # 정규화
-        state = self.change_state_type(state)
-
-        with torch.no_grad():
-            q_values = self.best_model(state).flatten().to("cpu")
+            if model == 'best':
+                q_values = self.best_model(state).flatten().to("cpu")
+            else:
+                q_values = self.model(state).flatten().to("cpu")
             max_idx = torch.argmax(q_values)
             act = max_idx.item()
 

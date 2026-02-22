@@ -394,11 +394,16 @@ class Trainer:
         for i in range(2):
             self.cur_epi_dict['valid'] = 0
             self.log_dict['valid'].reset(new=False)
+
             if i == 1:  # best
+                cur_model = 'best'
                 self.load_model('best')
                 self.agent.best_model.to(self.device)
 
-            # latest
+            else:   # latest
+                cur_model = 'latest'
+
+            # valid 1회 수행
             for episode in range(self.valid_total_episodes):
                 self.cur_epi_dict['valid'] += 1
                 # reset
@@ -408,10 +413,7 @@ class Trainer:
                 while not done:
                     cnt+=1
 
-                    if i == 1:  # best
-                        action = self.agent.get_action_best(state)
-                    else:       # latest
-                        action = self.agent.get_action_latest(state)
+                    action = self.agent.get_action_test(state, cur_model)
 
                     state, reward, done, clear = self.env.step(action)
                     total_reward += reward
@@ -507,7 +509,7 @@ class Trainer:
             # 게임 종료까지 반복
             while not done:
                 cnt+=1
-                action = self.agent.get_action_best(state)
+                action = self.agent.get_action_test(state, 'best')
                 state, reward, done, clear = self.env.step(action)
                 total_reward += reward
 
