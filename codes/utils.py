@@ -1,14 +1,60 @@
-import pickle
-from pathlib import Path
-import numpy as np
-import pandas as pd
+import torch
+import torch.nn.functional as F
 
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import seaborn as sns
 from config import CONFIG
 
-########################################
+############ Scaling ############
+def one_channel_scaling(state):
+    '''
+    state의 차원을 그대로 유지하면서 정규화한다.
+    output dim = [batch_size, 1, nrow, ncol]
+    지뢰(-2): -1, 안열린 칸(-1): -0.5, 0~8: min-max normalizing
+    '''
+    norm_state = state.clone().float()  # torch.Size([batch_size, 1, nrow, ncol])
+    batch_size, _, nrow, ncol = norm_state.size()
+
+    # 열린 칸 정규화 처리
+    mask_number = (state >= 0)
+    norm_state[mask_number] = state[mask_number] / 8.0
+
+    # 닫혀있는 칸은 -0.5로 고정
+    mask_unopened = (state == -1)
+    norm_state[mask_unopened] = -0.5
+
+    # 지뢰 칸은 -1.0로 고정
+    mask_mine = (state == -2)
+    norm_state[mask_mine] = -1.0
+
+    assert norm_state.dim() == 4, f"The tensor must be 4-dimensional. 현재 차원: {norm_state.dim()}"
+    assert norm_state.size() == torch.Size([batch_size, 1, nrow, ncol]), f"The tensor size must be [{batch_size}, 1, {nrow}, {ncol}]. 현재 차원: {norm_state.size()}"
+
+    return norm_state
+
+
+def one_hot_scaling(state):
+    '''
+    state를 one-hot encoding 방식으로 변경한다.
+    output dim = [batch_size, 11, nrow, ncol]
+    채널 순서: -2(지뢰) ~ 8
+    '''
+    raw_state = state.clone()   # torch.Size([batch_size, 1, nrow, ncol])
+    batch_size, _, nrow, ncol = raw_state.size()
+
+    shifted_state = raw_state + 2
+    one_hot = F.one_hot(shifted_state.squeeze(1).long(), num_classes=11) # torch.Size([batch_size, nrow, ncol, 11])
+    scaled_state = one_hot.permute(0, 3, 1, 2).float().contiguous() # torch.Size([batch_size, 11, nrow, ncol])
+
+    assert scaled_state.dim() == 4, f"The tensor must be 4-dimensional. 현재 차원: {scaled_state.dim()}"
+    assert scaled_state.size() == torch.Size([batch_size, 11, nrow, ncol]), f"The tensor size must be [{batch_size}, 11, {nrow}, {ncol}]. 현재 차원: {scaled_state.size()}"
+
+    return scaled_state
+
+
+############ Visualization ############
 def calculate_lag_avg(data, lag):
     result = data.rolling(window = lag, min_periods = 1).mean()
     return result

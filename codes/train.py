@@ -6,7 +6,7 @@ from typing import Tuple
 from environment import Environment
 from dqn_agent import DQN_Agent
 
-from visualization import *
+from utils import visualize_train_log, visualize_test_log, visualize_state
 from log import Log
 ########################################
 class Trainer:

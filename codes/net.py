@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from scaling import *
-
 ########################################
 class Net(nn.Module):
     def __init__(self, state_size, action_size, conv_units, channels):
@@ -35,18 +33,3 @@ class Net(nn.Module):
         x = self.fc(x)
 
         return x
-
-# debug
-def main():
-    t = torch.randint(-2, 9, (3, 1, 9, 9)).long()
-    scaled_t = one_hot_scaling(t)
-    print(scaled_t.size())
-    channels = scaled_t.size(1)
-    net = Net((9, 9), 9*9, 64, channels=channels)
-    q = net.forward(scaled_t)
-    print(q.size())
-
-
-
-if __name__ == "__main__":
-    main()

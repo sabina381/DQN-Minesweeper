@@ -7,7 +7,7 @@ import torch
 import torch.nn.functional as F
 
 from net import *
-from scaling import *
+from utils import one_channel_scaling, one_hot_scaling
 
 ########################################
 class DQN_Agent:
@@ -97,7 +97,7 @@ class DQN_Agent:
             norm_state = state  # torch.Size([batch, 1, 9, 9])
         
         elif self.state_type == "normalization":
-            norm_state = mine_normalize(state)  # torch.Size([batch, 1, 9, 9])
+            norm_state = one_channel_scaling(state)  # torch.Size([batch, 1, 9, 9])
 
         elif self.state_type == "one-hot":
             norm_state = one_hot_scaling(state) # torch.Size([batch, 11, 9, 9])
