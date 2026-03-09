@@ -1,8 +1,6 @@
 import pickle
 from pathlib import Path
 import pandas as pd
-
-from visualization import *
 #################################
 
 class Log:

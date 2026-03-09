@@ -76,12 +76,11 @@ class Trainer:
         
         # 학습 지표 관리 객체 생성
         self.log_dict = dict({'train': Log(MODE= 'train', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs']), 
-                            'valid': Log(MODE= 'valid', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs']), 
-                            'test': Log(MODE= 'test', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
+                            'valid': Log(MODE= 'valid', FOLDER_NAME= self.folder_name, PATH=self.path_dict['logs'])
                             })
 
         # 현재 에피소드 횟수 추적
-        self.cur_epi_dict = dict({'train': 0, 'valid': 0, 'test': 0})
+        self.cur_epi_dict = dict({'train': 0, 'valid': 0})
 
 
     def create_path(self):
