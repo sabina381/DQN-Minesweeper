@@ -120,7 +120,7 @@ class Tester(Trainer):
                 if not done:
                     done = super()._check_cnt_limit(cnt)
 
-                if done or clear:
+                if done:
                     break
 
             # 평가지표
@@ -141,7 +141,7 @@ class Tester(Trainer):
             f.write(log_str)
 
         log_data = self.test_log.load_logs()
-        visualize_test_log(log_data, lag=self.lag, save_path=f"{self.path_dict['graphs']}/test_{test_num}")
+        visualize_test_log(log_data, lag=self.lag, save_path=f"{self.path_dict['graph']}/test_{test_num}")
 
     
     def render_game(self, model, num_episode):
@@ -166,10 +166,9 @@ class Tester(Trainer):
                 if not done:
                     done = super()._check_cnt_limit(cnt)
 
-                self.env.render(state)
-                episode_data.append((state, reward))
+                episode_data.append((state, reward, action, clear))
 
-                if done or clear:
+                if done:
                     break
 
             if clear:

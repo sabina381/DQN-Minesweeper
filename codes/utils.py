@@ -204,7 +204,7 @@ def visualize_episodes(episode_data, save_path=None):
     nrow, ncol = CONFIG.GRIDWORLD_SIZE
 
     # 2. 각 step별로 서브플롯(ax)에 그리기
-    for i, (state, reward) in enumerate(episode_data):
+    for i, (state, reward, action, clear) in enumerate(episode_data):
         ax = axes[i]
         ax.set_xlim(0, ncol)
         ax.set_ylim(0, nrow)
@@ -212,19 +212,36 @@ def visualize_episodes(episode_data, save_path=None):
         ax.axis('off') # 축 숨기기
 
         # 상단에 Step과 Reward 표시
-        ax.set_title(f"Step {i+1} | Reward: {reward:.2f}", fontsize=11, fontweight='bold')
+        is_clear = "clear" if clear else "."
+        ax.set_title(f"Step {i+1} | Reward: {reward:.2f} | {is_clear}", fontsize=11, fontweight='bold')
+
+        if action is not None:
+            action_x, action_y = divmod(action, ncol)  # action_x = action // ncol, action_y = action % ncol
+        else:
+            action_x, action_y = -1, -1  # action이 없는 경우 (예외 처리)
 
         # 그리드 그리기
         for x in range(nrow):
             for y in range(ncol):
+                val = state[x, y]
+                bg_color = 'dimgray' if val == -1 else 'black'
+
+                is_action = (x == action_x and y == action_y)
+
+                edge_color = 'red' if is_action else 'gray'
+                line_width = 3 if is_action else 1
+                z_order = 2 if is_action else 1 # 빨간 테두리가 다른 칸에 가려지지 않게 맨 위로 올림
+
                 # 테두리 네모 그리기
-                rect = patches.Rectangle((y, nrow - 1 - x), 1, 1, linewidth=1, edgecolor='gray', facecolor='black')
+                rect = patches.Rectangle((y, nrow - 1 - x), 1, 1, 
+                                         linewidth=line_width, 
+                                         edgecolor=edge_color, 
+                                         facecolor=bg_color,
+                                         zorder=z_order) # zorder 적용
                 ax.add_patch(rect)
 
-                # 값 가져오기
-                val = state[x, y]
                 if val == -1: 
-                    text_val = "."
+                    text_val = " "
                 elif val == -2: 
                     text_val = "M"
                 else: 
@@ -237,9 +254,10 @@ def visualize_episodes(episode_data, save_path=None):
                 ax.text(y + 0.5, nrow - 1 - x + 0.5, text_val, 
                         horizontalalignment='center', 
                         verticalalignment='center',
-                        fontsize=10, # 다중 출력 시 글자가 겹치지 않게 폰트 사이즈 소폭 축소
+                        fontsize=10, 
                         color=t_color,
-                        weight='bold')
+                        weight='bold',
+                        zorder=3) # 글자도 맨 위로 올림
 
     # 3. 데이터가 그려지지 않은 남는 빈칸(subplot) 숨기기
     for j in range(num_steps, len(axes)):
