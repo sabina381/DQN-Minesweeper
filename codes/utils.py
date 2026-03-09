@@ -184,3 +184,76 @@ def visualize_state(state, save_path=None):
     plt.close()
     
     # print("Complete printing game image.")
+
+
+def visualize_episodes(episode_data, save_path=None):
+    num_steps = len(episode_data)
+    
+    # 1. 그리드 레이아웃 설정 (한 줄에 5개씩 출력)
+    cols = 5 
+    rows = (num_steps + cols - 1) // cols
+    
+    # 데이터 길이에 맞춰 전체 Figure 크기 동적 할당
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 3.5, rows * 3.5))
+
+    if num_steps == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
+
+    nrow, ncol = CONFIG.GRIDWORLD_SIZE
+
+    # 2. 각 step별로 서브플롯(ax)에 그리기
+    for i, (state, reward) in enumerate(episode_data):
+        ax = axes[i]
+        ax.set_xlim(0, ncol)
+        ax.set_ylim(0, nrow)
+        ax.set_aspect('equal')
+        ax.axis('off') # 축 숨기기
+
+        # 상단에 Step과 Reward 표시
+        ax.set_title(f"Step {i+1} | Reward: {reward:.2f}", fontsize=11, fontweight='bold')
+
+        # 그리드 그리기
+        for x in range(nrow):
+            for y in range(ncol):
+                # 테두리 네모 그리기
+                rect = patches.Rectangle((y, nrow - 1 - x), 1, 1, linewidth=1, edgecolor='gray', facecolor='black')
+                ax.add_patch(rect)
+
+                # 값 가져오기
+                val = state[x, y]
+                if val == -1: 
+                    text_val = "."
+                elif val == -2: 
+                    text_val = "M"
+                else: 
+                    text_val = str(int(val))
+
+                # 텍스트 색상 결정
+                t_color = CONFIG.COLOR_DICT.get(text_val, 'black')
+                
+                # 텍스트 쓰기
+                ax.text(y + 0.5, nrow - 1 - x + 0.5, text_val, 
+                        horizontalalignment='center', 
+                        verticalalignment='center',
+                        fontsize=10, # 다중 출력 시 글자가 겹치지 않게 폰트 사이즈 소폭 축소
+                        color=t_color,
+                        weight='bold')
+
+    # 3. 데이터가 그려지지 않은 남는 빈칸(subplot) 숨기기
+    for j in range(num_steps, len(axes)):
+        axes[j].axis('off')
+
+    # 서브플롯 간 간격 자동 조절
+    plt.tight_layout()
+
+    # 4. 저장 로직
+    if save_path:
+        plt.savefig(save_path)
+        print(f"Save episode image at {save_path}")
+        
+    else:
+        plt.show()
+
+    plt.close()
