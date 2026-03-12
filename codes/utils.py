@@ -204,7 +204,7 @@ def visualize_episodes(episode_data, save_path=None):
     nrow, ncol = CONFIG.GRIDWORLD_SIZE
 
     # 2. 각 step별로 서브플롯(ax)에 그리기
-    for i, (state, reward, action, clear) in enumerate(episode_data):
+    for i, (state, reward, action, clear, _) in enumerate(episode_data):
         ax = axes[i]
         ax.set_xlim(0, ncol)
         ax.set_ylim(0, nrow)
@@ -271,6 +271,117 @@ def visualize_episodes(episode_data, save_path=None):
         plt.savefig(save_path)
         print(f"Save episode image at {save_path}")
         
+    else:
+        plt.show()
+
+    plt.close()
+
+
+def visualize_state_and_q(episode_data, save_path=None):
+    '''
+    episode_data: [(state, action, reward, q_values), ...] 형태의 리스트
+    '''
+    num_steps = len(episode_data)
+    
+    # 1. 그리드 레이아웃 설정: 1스텝당 1줄 (열 2개: State, Q-value)
+    # 이미지 높이는 스텝 수에 비례하여 길어집니다.
+    fig, axes = plt.subplots(num_steps, 2, figsize=(10, num_steps * 4.5))
+
+    # 스텝이 1개일 경우 axes가 1D 배열이 되므로, 2D 배열처럼 다루기 위해 차원 확장
+    if num_steps == 1:
+        axes = np.array([axes])
+
+    nrow, ncol = CONFIG.GRIDWORLD_SIZE
+    cmap = plt.cm.coolwarm
+
+    # 2. 각 스텝(row)마다 그리기
+    for i, (state, reward, action, clear, q_values) in enumerate(episode_data):
+        ax_state = axes[i, 0] # 왼쪽 축 (State)
+        ax_q = axes[i, 1]     # 오른쪽 축 (Q-value)
+
+        # 기본 축 설정 (축 숨기기, 비율 맞추기)
+        for ax in (ax_state, ax_q):
+            ax.set_xlim(0, ncol)
+            ax.set_ylim(0, nrow)
+            ax.set_aspect('equal')
+            ax.axis('off')
+
+        # 상단 제목 표시
+        is_clear = "clear" if clear else "."
+        ax_state.set_title(f"Step {i+1} State | Reward: {reward:.2f} | {is_clear}", fontsize=12, fontweight='bold')
+        ax_q.set_title(f"Step {i+1} Q-Values", fontsize=12, fontweight='bold')
+
+        # 1D action -> 2D 좌표
+        if action is not None:
+            action_x, action_y = divmod(action, ncol)
+        else:
+            action_x, action_y = -1, -1
+
+        # Q-values를 2D 배열로 변환
+        if torch.is_tensor(q_values):
+            q_values = q_values.detach().cpu().numpy()
+        q_2d = q_values.reshape((nrow, ncol))
+        
+        # 색상 매핑을 위한 Q-value 최소/최대값 정규화
+        vmin, vmax = np.min(q_2d), np.max(q_2d)
+        if vmin == vmax: 
+            vmin, vmax = vmin - 1e-5, vmax + 1e-5
+
+        # 3. 그리드 그리기 (State와 Q-value를 동시에)
+        for x in range(nrow):
+            for y in range(ncol):
+                
+                is_action = (x == action_x and y == action_y)
+                edge_color = 'red' if is_action else 'gray'
+                line_width = 3 if is_action else 1
+                z_order = 2 if is_action else 1 
+
+                # ==========================================
+                # [왼쪽] State 캔버스 그리기
+                # ==========================================
+                val = state[x, y]
+                bg_color_state = 'dimgray' if val == -1 else 'black'
+
+                rect_state = patches.Rectangle((y, nrow - 1 - x), 1, 1, 
+                                         linewidth=line_width, edgecolor=edge_color, 
+                                         facecolor=bg_color_state, zorder=z_order)
+                ax_state.add_patch(rect_state)
+
+                if val == -1: text_val_state = "" # 안 열린 곳은 빈칸으로 깔끔하게
+                elif val == -2: text_val_state = "M"
+                else: text_val_state = str(int(val))
+
+                t_color_state = CONFIG.COLOR_DICT.get(text_val_state, 'black')
+                
+                ax_state.text(y + 0.5, nrow - 1 - x + 0.5, text_val_state, 
+                        horizontalalignment='center', verticalalignment='center',
+                        fontsize=12, color=t_color_state, weight='bold', zorder=3)
+
+                # ==========================================
+                # [오른쪽] Q-value 캔버스 그리기
+                # ==========================================
+                q_val = q_2d[x, y]
+                norm_q = (q_val - vmin) / (vmax - vmin)
+                bg_color_q = cmap(norm_q) 
+
+                rect_q = patches.Rectangle((y, nrow - 1 - x), 1, 1, 
+                                         linewidth=line_width, edgecolor=edge_color, 
+                                         facecolor=bg_color_q, zorder=z_order)
+                ax_q.add_patch(rect_q)
+
+                text_val_q = f"{q_val:.2f}"
+                
+                ax_q.text(y + 0.5, nrow - 1 - x + 0.5, text_val_q, 
+                        horizontalalignment='center', verticalalignment='center',
+                        fontsize=9, color='black', weight='bold', zorder=3)
+
+    # 4. 마무리
+    # bbox_inches='tight'를 주면 바깥 여백이 잘려서 이미지가 콤팩트해집니다.
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, bbox_inches='tight', pad_inches=0.1)
+        print(f"Save episode summary image at {save_path}")
     else:
         plt.show()
 

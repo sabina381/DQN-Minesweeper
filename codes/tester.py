@@ -6,7 +6,7 @@ from typing import Tuple
 from environment import Environment
 from dqn_agent import DQN_Agent
 
-from utils import visualize_train_log, visualize_test_log, visualize_state, visualize_episodes
+from utils import visualize_test_log, visualize_episodes, visualize_state_and_q
 from log import Log
 
 from trainer import Trainer
@@ -144,7 +144,7 @@ class Tester(Trainer):
         visualize_test_log(log_data, lag=self.lag, save_path=f"{self.path_dict['graph']}/test_{test_num}")
 
     
-    def render_game(self, model, num_episode):
+    def render_game(self, model, num_episode, heatmap=False):
         self.reset()
         print("Game start")
 
@@ -166,7 +166,8 @@ class Tester(Trainer):
                 if not done:
                     done = super()._check_cnt_limit(cnt)
 
-                episode_data.append((state, reward, action, clear))
+                q_value = self.agent.q_values
+                episode_data.append((state, reward, action, clear, q_value))
 
                 if done:
                     break
@@ -176,4 +177,8 @@ class Tester(Trainer):
             else:
                 print("Game over")
             
-            visualize_episodes(episode_data=episode_data, save_path=f"{self.path_dict['game_imgs']}/game_{epi:03}")
+            if heatmap:
+                visualize_state_and_q(episode_data=episode_data, save_path=f"{self.path_dict['game_imgs']}/game_heatmap_{epi:03}")
+            else:
+                visualize_episodes(episode_data=episode_data, save_path=f"{self.path_dict['game_imgs']}/_{epi:03})")
+            
