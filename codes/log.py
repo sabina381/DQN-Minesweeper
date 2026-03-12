@@ -92,3 +92,20 @@ class Log:
             df = pickle.load(f)
 
         return df
+
+    
+    def continue_logs(self):
+        df = self.load_logs()
+
+        # 공통 리스트
+        self.reward_list = list(df['reward'])
+        self.clear_list = list(df['clear'])
+        self.cnt_list = list(df['cnt'])
+        self.rpc_list = list(df['rpc'])
+
+        # train log는 loss, lr 추가
+        if self.mode == 'train':
+            self.loss_list = list(df['loss'])
+            self.lr_list = list(df['lr'])
+        
+        print(f"Load {self.mode} log lists from {self.file_path}")
