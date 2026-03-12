@@ -213,6 +213,14 @@ class Trainer:
         with open(self.path_dict['memory'], 'wb') as f:
             pickle.dump(self.agent.memory, f)
 
+    
+    def _load_memory(self):
+        '''
+        리플레이 메모리를 불러옴
+        '''
+        with open(self.path_dict['memory'], 'rb') as f:
+            self.agent.memory = pickle.load(f)
+
 
     def reset(self):
         '''
@@ -226,6 +234,16 @@ class Trainer:
         for key in self.cur_epi_dict.keys():
             self.cur_epi_dict[key] = 0
             self.log_dict[key].reset()
+    
+    def _continue_train(self):
+        with open(f"{self.path_dict['logs']}/train.pkl") as f:
+            self.log_dict['train'].continue_logs()
+        
+        self.cur_epi_dict['train'] = len(self.log_dict['train'].clear_list)
+
+        avg_cnt = np.mean(self.log_dict['train'].cnt_list)
+        self.agent.epsilon = max(self.agent.epsilon_init * (self.agent.epsilon_decay ** (self.cur_epi_dict['train'] * avg_cnt)), self.agent.epsilon_min)
+        self.agent.lr = self.agent.lr_init * (self.lr_decay ** (self.cur_epi_dict['train'] // self.lr_epoch))
 
 
     def _game_reset(self):
@@ -307,9 +325,20 @@ class Trainer:
         전체 학습을 실행하는 함수
         '''
         self.reset()
-        print("Train start")
+        if Path(f"{self.path_dict['model']}/best.pkl").exists():
+            self._continue_train()
+            log_str = "\nTrain continue"
+            print(log_str)
+            episodes = self.episodes - self.cur_epi_dict['train']
 
-        for episode in range(self.episodes):
+            with open(self.path_dict['log_message'], "a") as f:
+                f.write(log_str)
+
+        else:
+            episodes = self.episodes
+            print("Train start")
+
+        for _ in range(episodes):
             self.mode = 'train'
             self.agent.model.to(self.device)
             self.cur_epi_dict['train'] += 1
@@ -320,7 +349,7 @@ class Trainer:
             while not done:
                 cnt+=1
                 state = self.env.present_state.copy()
-                action = self.agent.get_action(state)
+                action = int(self.agent.get_action(state))
                 next_state, reward, done, clear = self.env.step(action)
                 total_reward += reward
 
@@ -343,26 +372,26 @@ class Trainer:
             self.log_dict['train'].update_logs([total_reward, clear, cnt, loss, self.agent.lr])
 
             # 타깃 모델 업데이트
-            if episode % self.update_target_every == 0:
+            if self.cur_epi_dict['train'] % self.update_target_every == 0:
                 self.agent.update_target_model()
 
             # lr 조절
-            if (episode+1) % self.lr_epoch == 0:
+            if (self.cur_epi_dict['train']+1) % self.lr_epoch == 0:
                 lr = self.agent.optimizer.param_groups[0]['lr'] * self.lr_decay
                 self.agent.optimizer.param_groups[0]['lr'] = max(lr, self.lr_min)
                 self.agent.lr = lr
 
             # model, 학습지표를 파일로 저장
-            if ((episode+1) % self.save_every == 0) or ((episode+1) == self.episodes):
+            if (self.cur_epi_dict['train'] % self.save_every == 0) or (self.cur_epi_dict['train'] == self.episodes):
                 self.save_model('latest')
                 self.log_dict['train'].save_logs()
 
             # 학습 로그 출력
-            if ((episode+1) % self.print_every == 0) or ((episode+1) % self.valid_every == 0):
+            if (self.cur_epi_dict['train'] % self.print_every == 0) or (self.cur_epi_dict['train'] % self.valid_every == 0):
                 self._print_log()
 
             # valid
-            if (episode+1) % self.valid_every == 0:
+            if (self.cur_epi_dict['train']+1) % self.valid_every == 0:
                 self.save_model('latest')
                 self.log_dict['train'].save_logs()
                 self.visualize_log()    # 학습 지표 그래프 출력
@@ -480,58 +509,6 @@ class Trainer:
             self.change_model()
             log_str += "\t!!!! Model changed !!!!\n"
             self.log_dict['valid'].latest_update = 0
-
-        with open(self.path_dict['log_message'], "a") as f:
-            f.write(log_str)
-
-
-    def test(self, num_episodes):
-        '''
-        test를 실행하는 함수
-        best model로 test한다.
-        '''
-        self.test_total_episodes = num_episodes
-        self.mode = 'test'
-        self.cur_epi_dict['test'] = 0
-        self.log_dict['test'].reset()
-        log_str = ""
-        print("Start test")
-
-        self.load_model('best')
-        self.agent.best_model.to(self.device)
-
-        for episode in range(self.test_total_episodes):
-            self.cur_epi_dict['test'] += 1
-            # reset
-            state, done, clear, total_reward, cnt, _ = self._game_reset()
-
-            # 게임 종료까지 반복
-            while not done:
-                cnt+=1
-                action = self.agent.get_action_test(state, 'best')
-                state, reward, done, clear = self.env.step(action)
-                total_reward += reward
-
-                # count 제한 : 전체 칸 수 - 지뢰 개수
-                if not done:
-                    done = self._check_cnt_limit(cnt)
-
-                if done or clear:
-                    break
-
-            # 평가지표
-            self.log_dict['test'].update_logs([total_reward, clear, cnt])
-
-            if (episode+1) % self.print_every == 0:
-                self._print_log()
-
-        self.log_dict['test'].save_logs()
-        log_str += f"======== Test result ======== \n\t\
-                    Total episode: {self.test_total_episodes}\n\t\
-                    Average win rate: {round(np.mean(self.log_dict['test'].clear_list), 3)}\n\t\
-                    Average reward: {round(np.mean(self.log_dict['test'].reward_list), 3)}\n\t\
-                    Average count: {round(np.mean(self.log_dict['test'].cnt_list), 3)}\n\t\
-                    Average RPC: {round(np.mean(self.log_dict['test'].rpc_list), 3)}\n"
 
         with open(self.path_dict['log_message'], "a") as f:
             f.write(log_str)
