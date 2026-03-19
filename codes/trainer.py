@@ -235,6 +235,7 @@ class Trainer:
             self.cur_epi_dict[key] = 0
             self.log_dict[key].reset()
     
+
     def _continue_train(self):
         with open(f"{self.path_dict['logs']}/train.pkl") as f:
             self.log_dict['train'].continue_logs()
@@ -243,7 +244,10 @@ class Trainer:
 
         avg_cnt = np.mean(self.log_dict['train'].cnt_list)
         self.agent.epsilon = max(self.agent.epsilon_init * (self.agent.epsilon_decay ** (self.cur_epi_dict['train'] * avg_cnt)), self.agent.epsilon_min)
-        self.agent.lr = self.agent.lr_init * (self.lr_decay ** (self.cur_epi_dict['train'] // self.lr_epoch))
+        
+        lr = self.agent.lr_init * (self.lr_decay ** (self.cur_epi_dict['train'] // self.lr_epoch))
+        self.agent.optimizer.param_groups[0]['lr'] = max(lr, self.lr_min)
+        self.agent.lr = max(lr, self.lr_min)
 
 
     def _game_reset(self):
@@ -376,10 +380,10 @@ class Trainer:
                 self.agent.update_target_model()
 
             # lr 조절
-            if (self.cur_epi_dict['train']+1) % self.lr_epoch == 0:
+            if self.cur_epi_dict['train'] % self.lr_epoch == 0:
                 lr = self.agent.optimizer.param_groups[0]['lr'] * self.lr_decay
                 self.agent.optimizer.param_groups[0]['lr'] = max(lr, self.lr_min)
-                self.agent.lr = lr
+                self.agent.lr = max(lr, self.lr_min)
 
             # model, 학습지표를 파일로 저장
             if (self.cur_epi_dict['train'] % self.save_every == 0) or (self.cur_epi_dict['train'] == self.episodes):
@@ -391,7 +395,7 @@ class Trainer:
                 self._print_log()
 
             # valid
-            if (self.cur_epi_dict['train']+1) % self.valid_every == 0:
+            if self.cur_epi_dict['train'] % self.valid_every == 0:
                 self.save_model('latest')
                 self.log_dict['train'].save_logs()
                 self.visualize_log()    # 학습 지표 그래프 출력
