@@ -6,7 +6,7 @@ from typing import Tuple
 from environment import Environment
 from dqn_agent import DQN_Agent
 
-from utils import visualize_test_log, visualize_episodes, visualize_state_and_q
+from utils import visualize_test_log, visualize_episodes, visualize_state_with_q
 from log import Log
 
 from trainer import Trainer
@@ -49,6 +49,16 @@ class Tester(Trainer):
         self.total_episodes = 0
         self.test_log.reset()
         self.cur_epi = 0
+
+    def update_test_info(self, test_num, num_mine, first_mine):
+        self.test_log.test_num = test_num
+        self.test_log.first_mine = first_mine
+        self.test_log.mine_num = num_mine
+
+        self.env.num_mine = num_mine
+        self.agent.num_mine = num_mine
+        
+        self.env.first_mine = first_mine
 
 
     def create_path(self):
@@ -93,13 +103,23 @@ class Tester(Trainer):
             f.write(log_str)
 
 
-    def test(self, model, num_episodes, test_num):
+    def test(self, model, num_episodes, test_num, num_mine, first_mine):
         '''
         주어진 모델로 test를 실행하는 함수
         '''
+        if num_episodes > 3000:
+            self.lag = 1000
+        else:
+            self.lag = 100
+
         self.reset()
         self.test_total_episodes = num_episodes
-        log_str = ""
+        self.update_test_info(test_num, num_mine, first_mine)
+        log_str = "\n" + "-"*50
+        log_str += f"\n\t<< Test Info >>\n\t- test_num: {test_num}\n\t- mine_num: {num_mine}\n\t- first_mine: {first_mine}\n"
+        with open(self.path_dict['log_message'], "a") as f:
+            f.write(log_str)
+
         print("Start test")
 
         super().load_model(model)
@@ -130,7 +150,7 @@ class Tester(Trainer):
                 self._print_log()
 
         self.test_log.save_logs()
-        log_str += f"======== Test result ======== \n\t\
+        log_str = f"\n======== Test result ======== \n\t\
                     Total episode: {self.test_total_episodes}\n\t\
                     Average win rate: {round(np.mean(self.test_log.clear_list), 3)}\n\t\
                     Average reward: {round(np.mean(self.test_log.reward_list), 3)}\n\t\
@@ -141,9 +161,9 @@ class Tester(Trainer):
             f.write(log_str)
 
         log_data = self.test_log.load_logs()
-        visualize_test_log(log_data, lag=self.lag, save_path=f"{self.path_dict['graph']}/test_{test_num}")
+        visualize_test_log(log_data.iloc[-self.test_total_episodes:], lag=self.lag, save_path=f"{self.path_dict['graph']}/test{test_num}_{num_mine}.png")
 
-    
+
     def render_game(self, model, num_episode, heatmap=False):
         self.reset()
         print("Game start")
@@ -178,7 +198,6 @@ class Tester(Trainer):
                 print("Game over")
             
             if heatmap:
-                visualize_state_and_q(episode_data=episode_data, save_path=f"{self.path_dict['game_imgs']}/game_heatmap_{epi:03}")
+                visualize_state_with_q(episode_data=episode_data, save_path=f"{self.path_dict['game_imgs']}/game_heatmap_{epi:02}")
             else:
-                visualize_episodes(episode_data=episode_data, save_path=f"{self.path_dict['game_imgs']}/_{epi:03})")
-            
+                visualize_episodes(episode_data=episode_data, save_path=f"{self.path_dict['game_imgs']}/_{epi:02})")

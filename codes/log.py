@@ -30,9 +30,14 @@ class Log:
             self.loss_list = []
             self.lr_list = []
         
-        # valid 시 모델 평가 시 학습이 안된다고 판단하기 위한 지표 
+        # valid 시 모델 평가 시 학습이 안된다고 판단하기 위한 지표 추가
         elif (self.mode == 'valid') and new:
             self.latest_update = 0
+        
+        else:   # test
+            self.test_num = 0
+            self.mine_num = 0
+            self.first_mine = 0
         
         print(f"Reset {self.mode} log lists.")
 
@@ -67,19 +72,28 @@ class Log:
                                     'rpc': self.rpc_list,
                                     'loss': self.loss_list,
                                     'lr': self.lr_list})
-        
         else:
-            new_df = pd.DataFrame({'reward': self.reward_list,
-                                    'clear': self.clear_list,
-                                    'cnt': self.cnt_list,
-                                    'rpc': self.rpc_list})
+            if self.mode == "valid":
+                new_df = pd.DataFrame({'reward': self.reward_list,
+                                        'clear': self.clear_list,
+                                        'cnt': self.cnt_list,
+                                        'rpc': self.rpc_list})
+            
+            else:
+                new_df = pd.DataFrame({'test_num': self.test_num,
+                                        'mine_num': self.mine_num,
+                                        'first_mine': self.first_mine,
+                                        'reward': self.reward_list,
+                                        'clear': self.clear_list,
+                                        'cnt': self.cnt_list,
+                                        'rpc': self.rpc_list})
 
             if self.path.exists():
                 with open(self.path, 'rb') as f:
                     old_df = pickle.load(f)
                 
                 new_df = pd.concat([old_df, new_df], ignore_index=True)
-        
+    
         with open(self.path, 'wb') as f:
             pickle.dump(new_df, f)
 
