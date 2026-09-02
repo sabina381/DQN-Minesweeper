@@ -1,0 +1,8 @@
+# 자동 생성된 것들
+__pycache__/
+.ipynb_checkpoints/
+
+# 진행상황 확인 및 작업용 미완성 파일
+_portfolio-work/
+analysis/
+experiments/

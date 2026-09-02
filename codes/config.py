@@ -3,6 +3,7 @@ from easydict import EasyDict
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
+from pathlib import Path
 
 ############# Train
 PRINT_EVERY = 100
@@ -10,18 +11,18 @@ SAVE_EVERY = 500
 VALID_EVERY = 2500
 
 LAG = 1000
-MODEL_CRITERIA = 3
+MODEL_CRITERIA = 4
 
-EPISODES = 150000
+EPISODES = 400000
 VALID_EPISODES = 1000
 
-PATH = "/Users/seungyeonlee/Documents/GitHub/DQN-Minesweeper"
-FOLDER_NAME = "dqn_260209"
+PATH = Path(__file__).resolve().parents[1]
+FOLDER_NAME = "dqn_modelA_400k"
 
 ############# Environment
 GRIDWORLD_SIZE = (9, 9)
 NUM_MINE = 9
-FIRST_MINE = False
+FIRST_MINE = True
 
 REWARD_DICT = {'mine':-1, 'empty':1, 'overlapped':-1, 'guess':0.3, 'clear':1}
 DONE_DICT = {'mine':True, 'empty':False, 'overlapped':False, 'guess':False, 'clear':True}
@@ -43,8 +44,8 @@ BATCH_RATE = 0
 
 LEARN_MAX = 0.001 # 스케줄러 (learning rate 감소 모듈) 사용
 LEARN_MIN = 0.0001
-LEARN_DECAY = 0.6
-LEARN_EPOCH = 30000
+LEARN_DECAY = 0.5
+LEARN_EPOCH = 50000
 
 GAMMA = 0.1 #gamma
 
@@ -54,7 +55,7 @@ EPSILON_MIN = 0.01
 
 ############# DQN settings
 CONV_UNITS = 64
-UPDATE_TARGET_EVERY = 5
+UPDATE_TARGET_EVERY = 10
 
 LOSS_FUNC = F.mse_loss
 OPTIMIZER = optim.Adam

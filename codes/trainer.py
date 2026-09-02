@@ -237,8 +237,8 @@ class Trainer:
     
 
     def _continue_train(self):
-        with open(f"{self.path_dict['logs']}/train.pkl") as f:
-            self.log_dict['train'].continue_logs()
+        # with open(f"{self.path_dict['logs']}/train.pkl") as f:
+        self.log_dict['train'].continue_logs()
         
         self.cur_epi_dict['train'] = len(self.log_dict['train'].clear_list)
 

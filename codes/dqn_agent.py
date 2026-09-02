@@ -153,9 +153,9 @@ class DQN_Agent:
         next_states = self.change_state_type(next_states)
 
         # 현재 상태에 대한 모델의 큐함수
-        predicts = self.model(states) # 현재 상태의 좌표를 준다
-        one_hot_action = F.one_hot(actions, self.num_actions).to(self.device)
-        predicts = torch.sum(one_hot_action*predicts, axis=1)
+        # predicts = self.model(states) # 현재 상태의 좌표를 준다
+        # one_hot_action = F.one_hot(actions, self.num_actions).to(self.device)
+        # predicts = torch.sum(one_hot_action*predicts, axis=1)
 
         # Q(s,a) 값을 예측값으로 사용 - (batch, num_actions)
         pred_q_values = self.model(states).gather(1, actions) # action idx의 데이터만 꺼냄
