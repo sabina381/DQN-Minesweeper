@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from pathlib import Path
+import os
 
 ############# Train
 PRINT_EVERY = 100
@@ -16,7 +17,7 @@ MODEL_CRITERIA = 4
 EPISODES = 400000
 VALID_EPISODES = 1000
 
-PATH = Path(__file__).resolve().parents[1]
+PATH = Path(os.getcwd()).parent / "experiments"
 FOLDER_NAME = "dqn_modelA_400k"
 
 ############# Environment
