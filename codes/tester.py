@@ -185,6 +185,9 @@ class Tester(Trainer):
                 # count 제한 : 전체 칸 수 - 지뢰 개수
                 if not done:
                     done = super()._check_cnt_limit(cnt)
+                    # 다음 행동을 고를 때 쓰일 큐함수를 미리 계산해서 시각화에 사용
+                    # (실제 다음 행동 선택은 다음 루프의 get_action_test에서 동일 state로 다시 이루어짐 - 결정론적(greedy)이라 값은 같음)
+                    self.agent.get_action_test(state, model)
 
                 q_value = self.agent.q_values
                 episode_data.append((state, reward, action, clear, q_value))
