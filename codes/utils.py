@@ -5,7 +5,40 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import seaborn as sns
+from pathlib import Path
+import pickle
+import os
 from config import CONFIG
+
+############ Path ############
+def load_config(model_name):
+    path = Path(os.getcwd()).parent / "experiments"
+    with open(path / model_name / "config.pkl", "rb") as f:
+        config = pickle.load(f)
+    return config
+
+def save_config(config):
+    config.PATH = Path(os.getcwd()).parent / "experiments"
+
+    path = f"{config.PATH}/{config.FOLDER_NAME}/config.pkl"
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "wb") as f:
+        pickle.dump(config, f)
+
+    path = f"{config.PATH}/{config.FOLDER_NAME}/config.txt"
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    Path(path).unlink(missing_ok=True)
+    if not path.exists():
+        config_str = ""
+        for item in config.items():
+            config_str += str(item) + "\n"
+
+        with open(path, "a") as f:
+            f.write(config_str)
+
 
 ############ Scaling ############
 def one_channel_scaling(state):
